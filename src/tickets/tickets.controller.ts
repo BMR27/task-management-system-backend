@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { Permissions } from '../common/decorators/permissions.decorator';
@@ -79,5 +79,11 @@ export class TicketsController {
   @Get(':id/history')
   getHistory(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.ticketsService.getHistory(id, user);
+  }
+
+  @Permissions('delete_ticket')
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.ticketsService.remove(id);
   }
 }

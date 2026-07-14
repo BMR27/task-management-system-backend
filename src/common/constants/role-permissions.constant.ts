@@ -11,7 +11,8 @@ export type PermissionKey =
   | 'manage_groups'
   | 'manage_categories'
   | 'view_reports'
-  | 'system_settings';
+  | 'system_settings'
+  | 'delete_ticket';
 
 // Port 1:1 of ROLE_PERMISSIONS from frontend lib/types.ts — single source of truth server-side.
 export const ROLE_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
@@ -27,6 +28,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'manage_categories',
     'view_reports',
     'system_settings',
+    'delete_ticket',
   ],
   supervisor: [
     'view_dashboard',
@@ -39,6 +41,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     'manage_groups',
     'manage_categories',
     'view_reports',
+    'delete_ticket',
   ],
   agent: [
     'view_dashboard',

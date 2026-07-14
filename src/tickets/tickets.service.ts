@@ -299,6 +299,15 @@ export class TicketsService {
     return this.history.findByTicket(id);
   }
 
+  async remove(id: string) {
+    const existing = await this.prisma.ticket.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException('Ticket no encontrado');
+    }
+    await this.prisma.ticket.delete({ where: { id } });
+    return { ok: true };
+  }
+
   emitCommentCreated(event: CommentCreatedEvent) {
     this.events.emit('comment.created', event);
   }
