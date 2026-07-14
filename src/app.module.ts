@@ -8,6 +8,7 @@ import { UsersModule } from './users/users.module';
 import { GroupsModule } from './groups/groups.module';
 import { CategoriesModule } from './categories/categories.module';
 import { TicketsModule } from './tickets/tickets.module';
+import { AttachmentsModule } from './attachments/attachments.module';
 import { CommentsModule } from './comments/comments.module';
 import { HistoryModule } from './history/history.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -27,6 +28,7 @@ import { HealthModule } from './health/health.module';
     GroupsModule,
     CategoriesModule,
     TicketsModule,
+    AttachmentsModule,
     CommentsModule,
     HistoryModule,
     NotificationsModule,

@@ -1,4 +1,4 @@
-import { IsArray, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsDateString, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 import { TicketPriority } from '@prisma/client';
 
 export class CreateTicketDto {
@@ -24,4 +24,12 @@ export class CreateTicketDto {
   @IsOptional()
   @IsArray()
   tags?: string[];
+
+  @IsOptional()
+  @IsDateString()
+  dueDate?: string;
+
+  @IsOptional()
+  @IsString()
+  assignedToId?: string;
 }

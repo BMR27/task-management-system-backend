@@ -82,11 +82,18 @@ export class TicketsService {
         status: 'new',
         tags: dto.tags?.map((t) => t.trim().toLowerCase()).filter(Boolean) ?? [],
         createdById: user.id,
+        dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
+        assignedToId: dto.assignedToId,
+        assignedAt: dto.assignedToId ? new Date() : undefined,
       },
       include: TICKET_INCLUDE,
     });
     await this.history.create(ticket.id, user.id, 'created');
     this.events.emit(TICKET_CREATED, new TicketCreatedEvent(ticket, user.id));
+    if (dto.assignedToId) {
+      await this.history.create(ticket.id, user.id, 'assigned', 'assignedToId', null, dto.assignedToId);
+      this.events.emit(TICKET_ASSIGNED, new TicketAssignedEvent(ticket, null, dto.assignedToId, user.id));
+    }
     return this.withSla(ticket);
   }
 
@@ -166,6 +173,7 @@ export class TicketsService {
     if (dto.groupId) data.group = { connect: { id: dto.groupId } };
     if (dto.assignedToId !== undefined) {
       data.assignedTo = dto.assignedToId ? { connect: { id: dto.assignedToId } } : { disconnect: true };
+      data.assignedAt = dto.assignedToId ? new Date() : null;
     }
     if (dto.status) {
       Object.assign(data, this.statusSideEffects(existing.status, dto.status));
@@ -238,7 +246,10 @@ export class TicketsService {
     }
     const updated = await this.prisma.ticket.update({
       where: { id },
-      data: { assignedTo: userId ? { connect: { id: userId } } : { disconnect: true } },
+      data: {
+        assignedTo: userId ? { connect: { id: userId } } : { disconnect: true },
+        assignedAt: userId ? new Date() : null,
+      },
       include: TICKET_INCLUDE,
     });
     await this.history.create(id, user.id, 'assigned', 'assignedToId', existing.assignedToId, userId);
