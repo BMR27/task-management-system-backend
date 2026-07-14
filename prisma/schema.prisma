@@ -1,0 +1,215 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  supervisor
+  agent
+  user
+}
+
+enum TicketStatus {
+  new
+  in_progress
+  resolved
+  closed
+}
+
+enum TicketPriority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum CommentType {
+  public
+  internal
+}
+
+enum NotificationType {
+  ticket_created
+  ticket_assigned
+  status_changed
+  new_comment
+}
+
+enum DigestFrequency {
+  none
+  daily
+  weekly
+}
+
+model User {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  passwordHash     String
+  name             String
+  role             UserRole  @default(user)
+  groupId          String?
+  group            Group?    @relation("GroupMembers", fields: [groupId], references: [id])
+  avatar           String?
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  lastLogin        DateTime?
+  refreshTokenHash String?
+
+  createdTickets  Ticket[]       @relation("CreatedBy")
+  assignedTickets Ticket[]       @relation("AssignedTo")
+  comments        Comment[]
+  historyEntries  HistoryEntry[]
+  notifications   Notification[]
+  leadsGroups     Group[]        @relation("GroupLeader")
+
+  @@index([groupId])
+  @@index([role])
+}
+
+model Group {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  color       String
+  leaderId    String?
+  leader      User?    @relation("GroupLeader", fields: [leaderId], references: [id], onDelete: SetNull)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  members    User[]     @relation("GroupMembers")
+  categories Category[]
+  tickets    Ticket[]
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  icon        String
+  groupId     String
+  group       Group    @relation(fields: [groupId], references: [id])
+  slaHours    Int
+  isActive    Boolean  @default(true)
+
+  tickets Ticket[]
+
+  @@index([groupId])
+}
+
+model FolioCounter {
+  year    Int @id
+  lastSeq Int @default(0)
+}
+
+model Ticket {
+  id           String         @id @default(cuid())
+  folio        String         @unique
+  title        String
+  description  String
+  status       TicketStatus   @default(new)
+  priority     TicketPriority @default(medium)
+  categoryId   String
+  category     Category       @relation(fields: [categoryId], references: [id])
+  groupId      String
+  group        Group          @relation(fields: [groupId], references: [id])
+  assignedToId String?
+  assignedTo   User?          @relation("AssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdById  String
+  createdBy    User           @relation("CreatedBy", fields: [createdById], references: [id])
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  dueDate      DateTime?
+  resolvedAt   DateTime?
+  closedAt     DateTime?
+  tags         String[]       @default([])
+
+  attachments   Attachment[]
+  comments      Comment[]
+  history       HistoryEntry[]
+  notifications Notification[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([assignedToId])
+  @@index([groupId])
+  @@index([createdById])
+  @@index([categoryId])
+  @@index([createdAt])
+}
+
+model Comment {
+  id        String      @id @default(cuid())
+  ticketId  String
+  ticket    Ticket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  content   String
+  type      CommentType @default(public)
+  createdAt DateTime    @default(now())
+
+  attachments Attachment[]
+
+  @@index([ticketId])
+}
+
+model HistoryEntry {
+  id        String   @id @default(cuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  field     String?
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+  @@index([createdAt])
+}
+
+model Attachment {
+  id         String   @id @default(cuid())
+  name       String
+  url        String
+  size       Int
+  type       String
+  uploadedAt DateTime @default(now())
+  ticketId   String?
+  ticket     Ticket?  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  commentId  String?
+  comment    Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  ticketId  String?
+  ticket    Ticket?          @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, read])
+  @@index([createdAt])
+}
+
+model Settings {
+  id                  Int             @id @default(1)
+  emailOnNewTicket    Boolean         @default(true)
+  emailOnAssignment   Boolean         @default(true)
+  emailOnStatusChange Boolean         @default(true)
+  emailOnComment      Boolean         @default(true)
+  digestFrequency     DigestFrequency @default(none)
+  general             Json
+  security            Json
+  updatedAt           DateTime        @updatedAt
+}
