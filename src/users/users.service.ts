@@ -86,4 +86,23 @@ export class UsersService {
       select: SAFE_SELECT,
     });
   }
+
+  async remove(id: string, currentUserId: string) {
+    await this.findOne(id);
+    if (id === currentUserId) {
+      throw new ConflictException('No puedes eliminar tu propia cuenta');
+    }
+    const [createdTickets, comments, historyEntries] = await Promise.all([
+      this.prisma.ticket.count({ where: { createdById: id } }),
+      this.prisma.comment.count({ where: { userId: id } }),
+      this.prisma.historyEntry.count({ where: { userId: id } }),
+    ]);
+    if (createdTickets > 0 || comments > 0 || historyEntries > 0) {
+      throw new ConflictException(
+        'No se puede eliminar: el usuario tiene tickets, comentarios o historial asociados. Desactívalo en su lugar.',
+      );
+    }
+    await this.prisma.user.delete({ where: { id } });
+    return { ok: true };
+  }
 }
