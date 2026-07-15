@@ -20,4 +20,20 @@ export class AttachmentsService {
       ),
     );
   }
+
+  createForComment(commentId: string, files: Express.Multer.File[]) {
+    return this.prisma.$transaction(
+      files.map((file) =>
+        this.prisma.attachment.create({
+          data: {
+            name: file.originalname,
+            url: `/uploads/${file.filename}`,
+            size: file.size,
+            type: file.mimetype,
+            commentId,
+          },
+        }),
+      ),
+    );
+  }
 }
