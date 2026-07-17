@@ -55,9 +55,24 @@ export class TicketsService {
     return { ...ticket, slaAtRisk, slaBreached };
   }
 
-  private assertScope(user: AuthUser, ticket: { createdById: string }) {
+  private async assertScope(
+    user: AuthUser,
+    ticket: { id: string; createdById: string; assignedToId: string | null },
+  ) {
     if (user.role === 'user' && ticket.createdById !== user.id) {
       throw new ForbiddenException('No tienes acceso a este ticket');
+    }
+    if (user.role === 'agent' && ticket.assignedToId !== user.id) {
+      const everAssigned = await this.prisma.historyEntry.findFirst({
+        where: {
+          ticketId: ticket.id,
+          field: 'assignedToId',
+          OR: [{ oldValue: user.id }, { newValue: user.id }],
+        },
+      });
+      if (!everAssigned) {
+        throw new ForbiddenException('No tienes acceso a este ticket');
+      }
     }
   }
 
@@ -105,6 +120,18 @@ export class TicketsService {
 
     if (user.role === 'user') {
       where.createdById = user.id;
+    } else if (user.role === 'agent') {
+      where.OR = [
+        { assignedToId: user.id },
+        {
+          history: {
+            some: {
+              field: 'assignedToId',
+              OR: [{ oldValue: user.id }, { newValue: user.id }],
+            },
+          },
+        },
+      ];
     } else if (query.assignedToId?.length) {
       where.assignedToId = { in: query.assignedToId };
     }
@@ -114,11 +141,12 @@ export class TicketsService {
     if (query.groupId?.length) where.groupId = { in: query.groupId };
     if (query.categoryId?.length) where.categoryId = { in: query.categoryId };
     if (query.search) {
-      where.OR = [
+      const searchOr: Prisma.TicketWhereInput[] = [
         { folio: { contains: query.search, mode: 'insensitive' } },
         { title: { contains: query.search, mode: 'insensitive' } },
         { description: { contains: query.search, mode: 'insensitive' } },
       ];
+      where.AND = [{ OR: searchOr }];
     }
     if (query.from || query.to) {
       where.createdAt = {
@@ -152,7 +180,7 @@ export class TicketsService {
     if (!ticket) {
       throw new NotFoundException('Ticket no encontrado');
     }
-    this.assertScope(user, ticket);
+    await this.assertScope(user, ticket);
     return this.withSla(ticket);
   }
 
@@ -161,7 +189,7 @@ export class TicketsService {
     if (!existing) {
       throw new NotFoundException('Ticket no encontrado');
     }
-    this.assertScope(user, existing);
+    await this.assertScope(user, existing);
 
     const data: Prisma.TicketUpdateInput = {
       title: dto.title,
@@ -295,7 +323,7 @@ export class TicketsService {
   async getHistory(id: string, user: AuthUser) {
     const ticket = await this.prisma.ticket.findUnique({ where: { id } });
     if (!ticket) throw new NotFoundException('Ticket no encontrado');
-    this.assertScope(user, ticket);
+    await this.assertScope(user, ticket);
     return this.history.findByTicket(id);
   }
 
