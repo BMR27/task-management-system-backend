@@ -111,6 +111,7 @@ async function main() {
         categoryId: t.categoryId,
         groupId: t.groupId,
         assignedToId: t.assignedToId,
+        assignedAt: t.assignedToId ? now : null,
         createdById: t.createdById,
         tags: t.tags,
         resolvedAt: (t as any).resolved ? now : null,
