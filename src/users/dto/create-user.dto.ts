@@ -9,10 +9,9 @@ export class CreateUserDto {
   @IsEmail()
   email!: string;
 
-  @IsOptional()
   @IsString()
   @MinLength(4)
-  password?: string;
+  password!: string;
 
   @IsOptional()
   @IsEnum(UserRole)

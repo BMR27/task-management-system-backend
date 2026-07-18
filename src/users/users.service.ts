@@ -48,7 +48,7 @@ export class UsersService {
     if (existing) {
       throw new ConflictException('Ya existe un usuario con ese email');
     }
-    const passwordHash = await bcrypt.hash(dto.password ?? 'demo', 10);
+    const passwordHash = await bcrypt.hash(dto.password, 10);
     return this.prisma.user.create({
       data: {
         name: dto.name,
@@ -57,6 +57,7 @@ export class UsersService {
         role: dto.role ?? 'user',
         groupId: dto.groupId || null,
         isActive: true,
+        mustChangePassword: true,
       },
       select: SAFE_SELECT,
     });

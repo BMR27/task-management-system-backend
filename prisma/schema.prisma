@@ -56,6 +56,7 @@ model User {
   group            Group?    @relation("GroupMembers", fields: [groupId], references: [id])
   avatar           String?
   isActive         Boolean   @default(true)
+  mustChangePassword Boolean @default(false)
   createdAt        DateTime  @default(now())
   lastLogin        DateTime?
   refreshTokenHash String?

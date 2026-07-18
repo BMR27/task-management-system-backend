@@ -14,6 +14,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -76,6 +77,14 @@ export class AuthController {
     res.clearCookie('access_token', this.cookieOptions(0));
     res.clearCookie('refresh_token', this.cookieOptions(0));
     return { ok: true };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  async changePassword(@CurrentUser() user: AuthUser, @Body() dto: ChangePasswordDto) {
+    const updated = await this.authService.changePassword(user.id, dto.newPassword);
+    return { user: updated };
   }
 
   @UseGuards(JwtAuthGuard)

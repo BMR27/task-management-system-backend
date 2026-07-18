@@ -77,10 +77,21 @@ export class AuthService {
     groupId: string | null;
     avatar: string | null;
     isActive: boolean;
+    mustChangePassword: boolean;
     createdAt: Date;
     lastLogin: Date | null;
   }) {
-    const { id, email, name, role, groupId, avatar, isActive, createdAt, lastLogin } = user;
-    return { id, email, name, role, groupId, avatar, isActive, createdAt, lastLogin };
+    const { id, email, name, role, groupId, avatar, isActive, mustChangePassword, createdAt, lastLogin } =
+      user;
+    return { id, email, name, role, groupId, avatar, isActive, mustChangePassword, createdAt, lastLogin };
+  }
+
+  async changePassword(userId: string, newPassword: string) {
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash, mustChangePassword: false },
+    });
+    return this.sanitizeUser(user);
   }
 }
