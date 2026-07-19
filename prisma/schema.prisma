@@ -67,6 +67,7 @@ model User {
   historyEntries  HistoryEntry[]
   notifications   Notification[]
   leadsGroups     Group[]        @relation("GroupLeader")
+  defaultForCategories Category[] @relation("CategoryDefaultAssignee")
 
   @@index([groupId])
   @@index([role])
@@ -88,18 +89,21 @@ model Group {
 }
 
 model Category {
-  id          String   @id @default(cuid())
-  name        String
-  description String
-  icon        String
-  groupId     String
-  group       Group    @relation(fields: [groupId], references: [id])
-  slaHours    Int
-  isActive    Boolean  @default(true)
+  id                String   @id @default(cuid())
+  name              String
+  description       String
+  icon              String
+  groupId           String
+  group             Group    @relation(fields: [groupId], references: [id])
+  slaHours          Int
+  isActive          Boolean  @default(true)
+  defaultAssigneeId String?
+  defaultAssignee   User?    @relation("CategoryDefaultAssignee", fields: [defaultAssigneeId], references: [id], onDelete: SetNull)
 
   tickets Ticket[]
 
   @@index([groupId])
+  @@index([defaultAssigneeId])
 }
 
 model FolioCounter {

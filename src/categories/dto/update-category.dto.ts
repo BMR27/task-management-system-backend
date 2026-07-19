@@ -25,4 +25,8 @@ export class UpdateCategoryDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  defaultAssigneeId?: string | null;
 }

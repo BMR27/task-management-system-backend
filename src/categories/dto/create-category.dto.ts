@@ -19,4 +19,8 @@ export class CreateCategoryDto {
   @IsInt()
   @Min(1)
   slaHours!: number;
+
+  @IsOptional()
+  @IsString()
+  defaultAssigneeId?: string | null;
 }

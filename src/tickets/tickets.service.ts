@@ -77,14 +77,14 @@ export class TicketsService {
   }
 
   async create(dto: CreateTicketDto, user: AuthUser) {
-    let groupId = dto.groupId;
-    if (!groupId) {
-      const category = await this.prisma.category.findUnique({ where: { id: dto.categoryId } });
-      if (!category) {
-        throw new NotFoundException('Categoría no encontrada');
-      }
-      groupId = category.groupId;
+    const category = await this.prisma.category.findUnique({ where: { id: dto.categoryId } });
+    if (!category) {
+      throw new NotFoundException('Categoría no encontrada');
     }
+    const groupId = dto.groupId || category.groupId;
+    // Auto-assign to the category's default agent when the caller didn't pick someone explicitly.
+    const assignedToId = dto.assignedToId ?? category.defaultAssigneeId ?? undefined;
+
     const folio = await this.nextFolio();
     const ticket = await this.prisma.ticket.create({
       data: {
@@ -98,16 +98,16 @@ export class TicketsService {
         tags: dto.tags?.map((t) => t.trim().toLowerCase()).filter(Boolean) ?? [],
         createdById: user.id,
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
-        assignedToId: dto.assignedToId,
-        assignedAt: dto.assignedToId ? new Date() : undefined,
+        assignedToId,
+        assignedAt: assignedToId ? new Date() : undefined,
       },
       include: TICKET_INCLUDE,
     });
     await this.history.create(ticket.id, user.id, 'created');
     this.events.emit(TICKET_CREATED, new TicketCreatedEvent(ticket, user.id));
-    if (dto.assignedToId) {
-      await this.history.create(ticket.id, user.id, 'assigned', 'assignedToId', null, dto.assignedToId);
-      this.events.emit(TICKET_ASSIGNED, new TicketAssignedEvent(ticket, null, dto.assignedToId, user.id));
+    if (assignedToId) {
+      await this.history.create(ticket.id, user.id, 'assigned', 'assignedToId', null, assignedToId);
+      this.events.emit(TICKET_ASSIGNED, new TicketAssignedEvent(ticket, null, assignedToId, user.id));
     }
     return this.withSla(ticket);
   }
