@@ -46,6 +46,20 @@ export function newCommentTemplate(folio: string, title: string, author: string,
   );
 }
 
+export function ticketReceivedTemplate(folio: string, title: string) {
+  return wrap(
+    'Hemos recibido tu solicitud',
+    `Tu solicitud fue registrada como el ticket <b>${folio}</b>: "${title}". Te avisaremos a este correo cuando sea resuelta.`,
+  );
+}
+
+export function ticketResolvedExternalTemplate(folio: string, title: string) {
+  return wrap(
+    'Tu ticket ha sido resuelto',
+    `El ticket <b>${folio}</b>: "${title}" ha sido resuelto. Si tu solicitud no quedó atendida, responde a este correo para reabrirla.`,
+  );
+}
+
 export function digestTemplate(items: { title: string; message: string }[]) {
   const rows = items
     .map((i) => `<li><b>${i.title}</b>: ${i.message}</li>`)

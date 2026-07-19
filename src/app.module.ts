@@ -16,6 +16,7 @@ import { MailModule } from './mail/mail.module';
 import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
 import { HealthModule } from './health/health.module';
+import { InboundEmailModule } from './inbound-email/inbound-email.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { HealthModule } from './health/health.module';
     ReportsModule,
     SettingsModule,
     HealthModule,
+    InboundEmailModule,
   ],
 })
 export class AppModule {}

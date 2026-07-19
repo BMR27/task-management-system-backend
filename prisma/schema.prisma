@@ -133,6 +133,8 @@ model Ticket {
   resolvedAt   DateTime?
   closedAt     DateTime?
   tags         String[]       @default([])
+  requesterEmail String?
+  requesterName  String?
 
   attachments   Attachment[]
   comments      Comment[]

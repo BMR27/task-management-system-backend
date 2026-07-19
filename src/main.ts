@@ -6,7 +6,7 @@ import * as fs from 'fs';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
 
   const uploadsDir = process.env.UPLOADS_DIR ?? './uploads';
   fs.mkdirSync(uploadsDir, { recursive: true });

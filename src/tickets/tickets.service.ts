@@ -112,6 +112,51 @@ export class TicketsService {
     return this.withSla(ticket);
   }
 
+  /**
+   * Creates a ticket from an inbound email (no logged-in user). Lands in the
+   * "Bandeja de Entrada" queue for manual triage, unless that category has
+   * its own default assignee.
+   */
+  async createFromEmail(params: { title: string; description: string; requesterEmail: string; requesterName?: string }) {
+    const systemUser = await this.prisma.user.findUnique({
+      where: { email: 'sistema@nextoshelpdesk.com.mx' },
+    });
+    if (!systemUser) {
+      throw new NotFoundException('Usuario de sistema no configurado');
+    }
+    const category = await this.prisma.category.findFirst({ where: { name: 'Bandeja de Entrada' } });
+    if (!category) {
+      throw new NotFoundException('Categoría de bandeja de entrada no configurada');
+    }
+    const assignedToId = category.defaultAssigneeId ?? undefined;
+
+    const folio = await this.nextFolio();
+    const ticket = await this.prisma.ticket.create({
+      data: {
+        folio,
+        title: params.title,
+        description: params.description,
+        categoryId: category.id,
+        groupId: category.groupId,
+        priority: 'medium',
+        status: 'new',
+        createdById: systemUser.id,
+        requesterEmail: params.requesterEmail,
+        requesterName: params.requesterName,
+        assignedToId,
+        assignedAt: assignedToId ? new Date() : undefined,
+      },
+      include: TICKET_INCLUDE,
+    });
+    await this.history.create(ticket.id, systemUser.id, 'created');
+    this.events.emit(TICKET_CREATED, new TicketCreatedEvent(ticket, systemUser.id));
+    if (assignedToId) {
+      await this.history.create(ticket.id, systemUser.id, 'assigned', 'assignedToId', null, assignedToId);
+      this.events.emit(TICKET_ASSIGNED, new TicketAssignedEvent(ticket, null, assignedToId, systemUser.id));
+    }
+    return this.withSla(ticket);
+  }
+
   async findAll(query: QueryTicketsDto, user: AuthUser) {
     const page = query.page && query.page > 0 ? query.page : 1;
     const pageSize = query.pageSize && query.pageSize > 0 ? Math.min(query.pageSize, 500) : 20;
@@ -191,6 +236,22 @@ export class TicketsService {
     }
     await this.assertScope(user, existing);
 
+    // Reclassifying an unassigned ticket into a category with a default
+    // agent routes it there automatically, mirroring create()'s behavior —
+    // this is how "Mesa de Servicio" triage-by-category becomes automatic.
+    let effectiveAssignedToId = dto.assignedToId;
+    if (
+      effectiveAssignedToId === undefined &&
+      dto.categoryId &&
+      dto.categoryId !== existing.categoryId &&
+      !existing.assignedToId
+    ) {
+      const newCategory = await this.prisma.category.findUnique({ where: { id: dto.categoryId } });
+      if (newCategory?.defaultAssigneeId) {
+        effectiveAssignedToId = newCategory.defaultAssigneeId;
+      }
+    }
+
     const data: Prisma.TicketUpdateInput = {
       title: dto.title,
       description: dto.description,
@@ -199,9 +260,9 @@ export class TicketsService {
     };
     if (dto.categoryId) data.category = { connect: { id: dto.categoryId } };
     if (dto.groupId) data.group = { connect: { id: dto.groupId } };
-    if (dto.assignedToId !== undefined) {
-      data.assignedTo = dto.assignedToId ? { connect: { id: dto.assignedToId } } : { disconnect: true };
-      data.assignedAt = dto.assignedToId ? new Date() : null;
+    if (effectiveAssignedToId !== undefined) {
+      data.assignedTo = effectiveAssignedToId ? { connect: { id: effectiveAssignedToId } } : { disconnect: true };
+      data.assignedAt = effectiveAssignedToId ? new Date() : null;
     }
     if (dto.status) {
       Object.assign(data, this.statusSideEffects(existing.status, dto.status));
@@ -213,18 +274,18 @@ export class TicketsService {
       include: TICKET_INCLUDE,
     });
 
-    if (dto.assignedToId !== undefined && dto.assignedToId !== existing.assignedToId) {
+    if (effectiveAssignedToId !== undefined && effectiveAssignedToId !== existing.assignedToId) {
       await this.history.create(
         id,
         user.id,
         'assigned',
         'assignedToId',
         existing.assignedToId,
-        dto.assignedToId,
+        effectiveAssignedToId,
       );
       this.events.emit(
         TICKET_ASSIGNED,
-        new TicketAssignedEvent(updated, existing.assignedToId, dto.assignedToId ?? null, user.id),
+        new TicketAssignedEvent(updated, existing.assignedToId, effectiveAssignedToId ?? null, user.id),
       );
     }
     if (dto.status && dto.status !== existing.status) {

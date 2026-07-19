@@ -11,6 +11,7 @@ import {
   ticketCreatedTemplate,
   statusChangedTemplate,
   newCommentTemplate,
+  ticketResolvedExternalTemplate,
 } from '../../mail/templates/templates';
 import {
   CommentCreatedEvent,
@@ -111,6 +112,18 @@ export class TicketNotificationsListener {
     const { ticket, oldStatus, newStatus, actorId } = event;
     const settings = await this.settings.get();
     const url = this.ticketUrl(ticket.id);
+
+    // Tickets created from an inbound email have no in-app account to notify —
+    // email the original requester directly once resolved, independent of
+    // anyone's digest/notification preferences.
+    if (newStatus === 'resolved' && ticket.requesterEmail) {
+      await this.mail.send(
+        ticket.requesterEmail,
+        `Tu ticket ${ticket.folio} ha sido resuelto`,
+        ticketResolvedExternalTemplate(ticket.folio, ticket.title),
+      );
+    }
+
     const recipients = new Set<string>();
     if (ticket.createdById !== actorId) recipients.add(ticket.createdById);
     if (ticket.assignedToId && ticket.assignedToId !== actorId) recipients.add(ticket.assignedToId);
