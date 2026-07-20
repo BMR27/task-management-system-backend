@@ -55,14 +55,12 @@ export class ResendEmailFetcherService {
     const fromRaw: string = email.from ?? '';
     const { email: fromEmail, name: fromName } = parseFromHeader(fromRaw);
 
-    const headers: Record<string, string> = {};
-    for (const h of email.headers ?? []) {
-      if (h?.name && h?.value) headers[h.name] = h.value;
-    }
+    // Resend returns `headers` as a flat { headerName: value } map, not a list.
+    const headers: Record<string, string> = email.headers ?? {};
 
-    const messageId: string = email.message_id ?? headers['Message-Id'] ?? headers['Message-ID'] ?? emailId;
-    const inReplyTo: string | undefined = email.in_reply_to ?? headers['In-Reply-To'] ?? undefined;
-    const referencesRaw: string = email.references ?? headers['References'] ?? '';
+    const messageId: string = email.message_id ?? headers['message-id'] ?? emailId;
+    const inReplyTo: string | undefined = email.in_reply_to ?? headers['in-reply-to'] ?? undefined;
+    const referencesRaw: string = email.references ?? headers['references'] ?? '';
     const references = referencesRaw
       .split(/\s+/)
       .map((r: string) => r.trim())
@@ -73,11 +71,9 @@ export class ResendEmailFetcherService {
       try {
         const filename = att.filename ?? att.name ?? 'adjunto';
         const contentType = att.content_type ?? att.contentType ?? att.type ?? 'application/octet-stream';
-        const buffer = att.content
-          ? Buffer.from(att.content, 'base64')
-          : att.url
-            ? await this.downloadAttachment(att.url)
-            : null;
+        // Resend's email payload only lists attachment metadata — the actual
+        // bytes come from a signed download_url obtained via a per-attachment call.
+        const buffer = await this.downloadAttachmentContent(emailId, att.id);
         if (buffer) attachments.push({ filename, contentType, buffer });
       } catch (err) {
         this.logger.warn(`No se pudo procesar un adjunto del correo ${emailId}: ${(err as Error).message}`);
@@ -98,9 +94,19 @@ export class ResendEmailFetcherService {
     };
   }
 
-  private async downloadAttachment(url: string): Promise<Buffer> {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`No se pudo descargar adjunto: ${res.status}`);
-    return Buffer.from(await res.arrayBuffer());
+  private async downloadAttachmentContent(emailId: string, attachmentId: string): Promise<Buffer | null> {
+    const apiKey = this.config.get<string>('RESEND_API_KEY');
+    const metaRes = await fetch(`https://api.resend.com/emails/receiving/${emailId}/attachments/${attachmentId}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!metaRes.ok) {
+      throw new Error(`No se pudo obtener metadata del adjunto ${attachmentId}: ${metaRes.status}`);
+    }
+    const meta = (await metaRes.json()) as { download_url?: string };
+    if (!meta.download_url) return null;
+
+    const fileRes = await fetch(meta.download_url);
+    if (!fileRes.ok) throw new Error(`No se pudo descargar adjunto: ${fileRes.status}`);
+    return Buffer.from(await fileRes.arrayBuffer());
   }
 }
