@@ -11,6 +11,7 @@ import {
   ticketCreatedTemplate,
   statusChangedTemplate,
   newCommentTemplate,
+  newCommentExternalTemplate,
   ticketResolvedExternalTemplate,
 } from '../../mail/templates/templates';
 import {
@@ -121,6 +122,7 @@ export class TicketNotificationsListener {
         ticket.requesterEmail,
         `Tu ticket ${ticket.folio} ha sido resuelto`,
         ticketResolvedExternalTemplate(ticket.folio, ticket.title),
+        { ticketId: ticket.id },
       );
     }
 
@@ -174,6 +176,18 @@ export class TicketNotificationsListener {
         ticket.id,
         newCommentTemplate(ticket.folio, ticket.title, author?.name ?? 'Alguien', url),
         settings.emailOnComment,
+      );
+    }
+
+    // The external requester has no in-app account — email them directly on
+    // public replies, unless this very comment came from their own email
+    // reply (avoids an infinite reply loop).
+    if (comment.type === 'public' && comment.source !== 'email' && ticket.requesterEmail) {
+      await this.mail.send(
+        ticket.requesterEmail,
+        `Nueva respuesta en tu ticket ${ticket.folio}`,
+        newCommentExternalTemplate(ticket.folio, ticket.title, author?.name ?? 'Un agente'),
+        { ticketId: ticket.id },
       );
     }
   }

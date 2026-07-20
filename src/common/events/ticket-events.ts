@@ -32,7 +32,14 @@ export class TicketStatusChangedEvent {
 
 export class CommentCreatedEvent {
   constructor(
-    public comment: { id: string; ticketId: string; userId: string; content: string; type: string },
+    public comment: {
+      id: string;
+      ticketId: string;
+      userId: string;
+      content: string;
+      type: string;
+      source?: 'web' | 'email';
+    },
     public ticket: Ticket,
     public actorId: string,
   ) {}

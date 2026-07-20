@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 
 const prisma = new PrismaClient();
 
@@ -70,6 +71,9 @@ const comments = [
   { id: 'cm7', ticketId: 't10', userId: 'u4', content: 'Equipo de mantenimiento en sitio. Se cerró válvula principal para contener fuga.', type: 'public' },
   { id: 'cm8', ticketId: 't4', userId: 'u3', content: 'Office 365 instalado y correo configurado. Usuario notificado.', type: 'public' },
 ];
+
+const SYSTEM_USER_EMAIL = 'sistema@nextoshelpdesk.com.mx';
+const INBOUND_EMAIL_CATEGORY = 'Bandeja de Entrada';
 
 async function main() {
   for (const g of groups) {
@@ -164,6 +168,109 @@ async function main() {
     update: {},
   });
 
+  // Usuario de sistema y categoría usados por TicketsService.createFromEmail()
+  // para los tickets creados a partir de correos entrantes (src/inbound-email/).
+  const systemUser = await prisma.user.upsert({
+    where: { email: SYSTEM_USER_EMAIL },
+    create: {
+      id: 'sys-email',
+      email: SYSTEM_USER_EMAIL,
+      name: 'Sistema (correo entrante)',
+      role: 'user',
+      passwordHash: await bcrypt.hash(randomBytes(24).toString('hex'), 10),
+      isActive: true,
+    },
+    update: {},
+  });
+
+  await prisma.category.upsert({
+    where: { id: 'c-inbox' },
+    create: {
+      id: 'c-inbox',
+      name: INBOUND_EMAIL_CATEGORY,
+      description: 'Tickets generados automáticamente desde correo entrante, pendientes de reclasificación',
+      icon: 'inbox',
+      groupId: 'g1',
+      slaHours: 24,
+      isActive: true,
+    },
+    update: {},
+  });
+
+  await prisma.emailIngestConfig.upsert({
+    where: { id: 1 },
+    create: {
+      id: 1,
+      monitoredAddress: 'soporte@midominio.com',
+      defaultGroupId: 'g1',
+      defaultCategoryId: 'c-inbox',
+      defaultPriority: 'medium',
+      senderBlocklist: [],
+      maxAttachmentsPerEmail: 5,
+      maxAttachmentSizeMb: 10,
+      maxTicketsPerSenderPerHour: 20,
+    },
+    update: {},
+  });
+
+  await prisma.classificationRule.upsert({
+    where: { id: 'rule-facturacion' },
+    create: {
+      id: 'rule-facturacion',
+      name: 'Facturación → Finanzas',
+      order: 10,
+      matchType: 'subject_contains',
+      matchValue: 'factura',
+      groupId: 'g5',
+      categoryId: 'c10',
+      priority: 'medium',
+    },
+    update: {},
+  });
+  await prisma.classificationRule.upsert({
+    where: { id: 'rule-accesos' },
+    create: {
+      id: 'rule-accesos',
+      name: 'Problemas de acceso → TI',
+      order: 20,
+      matchType: 'subject_contains',
+      matchValue: 'acceso',
+      groupId: 'g1',
+      categoryId: 'c4',
+      priority: 'high',
+    },
+    update: {},
+  });
+  await prisma.classificationRule.upsert({
+    where: { id: 'rule-rh' },
+    create: {
+      id: 'rule-rh',
+      name: 'Recursos Humanos → RH',
+      order: 30,
+      matchType: 'subject_contains',
+      matchValue: 'recursos humanos',
+      groupId: 'g4',
+      categoryId: 'c9',
+      priority: 'medium',
+    },
+    update: {},
+  });
+  await prisma.classificationRule.upsert({
+    where: { id: 'rule-compras' },
+    create: {
+      id: 'rule-compras',
+      name: 'Compras → Compras',
+      order: 40,
+      matchType: 'subject_contains',
+      matchValue: 'compra',
+      groupId: 'g6',
+      categoryId: 'c5',
+      priority: 'medium',
+    },
+    update: {},
+  });
+
+  console.log(`Usuario de sistema para correo entrante: ${systemUser.email}`);
   console.log('Seed completado. Usuarios de prueba (password: "demo"):');
   for (const u of users) console.log(`  ${u.role.padEnd(10)} ${u.email}`);
 }

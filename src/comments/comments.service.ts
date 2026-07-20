@@ -60,9 +60,36 @@ export class CommentsService {
     this.events.emit(
       COMMENT_CREATED,
       new CommentCreatedEvent(
-        { id: comment.id, ticketId, userId: user.id, content: comment.content, type },
+        { id: comment.id, ticketId, userId: user.id, content: comment.content, type, source: 'web' },
         ticket,
         user.id,
+      ),
+    );
+    return comment;
+  }
+
+  /**
+   * Adds a comment coming from a matched inbound email reply. No AuthUser
+   * involved (the "sender" isn't a logged-in account) — the system user acts
+   * on their behalf, same as TicketsService.createFromEmail.
+   */
+  async createFromEmail(ticketId: string, content: string, systemUserId: string) {
+    const ticket = await this.prisma.ticket.findUnique({ where: { id: ticketId } });
+    if (!ticket) {
+      throw new NotFoundException('Ticket no encontrado');
+    }
+    const comment = await this.prisma.comment.create({
+      data: { ticketId, userId: systemUserId, content, type: 'public', source: 'email' },
+      include: { user: { select: { id: true, name: true, avatar: true, role: true } } },
+    });
+    await this.prisma.ticket.update({ where: { id: ticketId }, data: { updatedAt: new Date() } });
+    await this.history.create(ticketId, systemUserId, 'comment_from_email');
+    this.events.emit(
+      COMMENT_CREATED,
+      new CommentCreatedEvent(
+        { id: comment.id, ticketId, userId: systemUserId, content, type: 'public', source: 'email' },
+        ticket,
+        systemUserId,
       ),
     );
     return comment;

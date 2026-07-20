@@ -46,6 +46,36 @@ enum DigestFrequency {
   weekly
 }
 
+enum TicketSource {
+  web
+  email
+}
+
+enum CommentSource {
+  web
+  email
+}
+
+enum EmailDirection {
+  inbound
+  outbound
+}
+
+enum EmailStatus {
+  pending
+  processing
+  processed
+  skipped
+  failed
+}
+
+enum RuleMatchType {
+  subject_contains
+  body_contains
+  from_domain
+  from_email
+}
+
 model User {
   id               String    @id @default(cuid())
   email            String    @unique
@@ -101,6 +131,7 @@ model Category {
   defaultAssignee   User?    @relation("CategoryDefaultAssignee", fields: [defaultAssigneeId], references: [id], onDelete: SetNull)
 
   tickets Ticket[]
+  classificationRules ClassificationRule[]
 
   @@index([groupId])
   @@index([defaultAssigneeId])
@@ -135,11 +166,13 @@ model Ticket {
   tags         String[]       @default([])
   requesterEmail String?
   requesterName  String?
+  source       TicketSource   @default(web)
 
   attachments   Attachment[]
   comments      Comment[]
   history       HistoryEntry[]
   notifications Notification[]
+  emailMessages EmailMessage[]
 
   @@index([status])
   @@index([priority])
@@ -158,9 +191,11 @@ model Comment {
   user      User        @relation(fields: [userId], references: [id])
   content   String
   type      CommentType @default(public)
+  source    CommentSource @default(web)
   createdAt DateTime    @default(now())
 
-  attachments Attachment[]
+  attachments   Attachment[]
+  emailMessages EmailMessage[]
 
   @@index([ticketId])
 }
@@ -220,4 +255,58 @@ model Settings {
   general             Json
   security            Json
   updatedAt           DateTime        @updatedAt
+}
+
+model EmailMessage {
+  id           String         @id @default(cuid())
+  direction    EmailDirection
+  messageId    String         @unique
+  inReplyTo    String?
+  references   String[]       @default([])
+  fromEmail    String?
+  fromName     String?
+  subject      String?
+  status       EmailStatus    @default(pending)
+  ticketId     String?
+  ticket       Ticket?        @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  commentId    String?
+  comment      Comment?       @relation(fields: [commentId], references: [id], onDelete: SetNull)
+  errorMessage String?
+  retryCount   Int            @default(0)
+  rawPayload   Json?
+  receivedAt   DateTime       @default(now())
+
+  @@index([status])
+  @@index([ticketId])
+  @@index([inReplyTo])
+}
+
+model ClassificationRule {
+  id         String          @id @default(cuid())
+  name       String
+  isActive   Boolean         @default(true)
+  order      Int             @default(0)
+  matchType  RuleMatchType
+  matchValue String
+  groupId    String?
+  categoryId String?
+  category   Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  priority   TicketPriority?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([isActive, order])
+}
+
+model EmailIngestConfig {
+  id                         Int            @id @default(1)
+  monitoredAddress           String?
+  defaultGroupId             String?
+  defaultCategoryId          String?
+  defaultPriority            TicketPriority @default(medium)
+  senderBlocklist            String[]       @default([])
+  maxAttachmentsPerEmail     Int            @default(5)
+  maxAttachmentSizeMb        Int            @default(10)
+  maxTicketsPerSenderPerHour Int            @default(20)
+  updatedAt                  DateTime       @updatedAt
 }

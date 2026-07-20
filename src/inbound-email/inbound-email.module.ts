@@ -1,10 +1,9 @@
 import { Module } from '@nestjs/common';
 import { InboundEmailController } from './inbound-email.controller';
-import { TicketsModule } from '../tickets/tickets.module';
-import { MailModule } from '../mail/mail.module';
+import { EmailProcessingModule } from '../email-processing/email-processing.module';
 
 @Module({
-  imports: [TicketsModule, MailModule],
+  imports: [EmailProcessingModule],
   controllers: [InboundEmailController],
 })
 export class InboundEmailModule {}

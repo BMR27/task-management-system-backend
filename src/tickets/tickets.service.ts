@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Prisma, Ticket, TicketStatus } from '@prisma/client';
+import { Prisma, Ticket, TicketPriority, TicketStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { HistoryService } from '../history/history.service';
 import { AuthUser } from '../common/decorators/current-user.decorator';
@@ -46,7 +46,7 @@ export class TicketsService {
     return `TK-${year}-${String(counter).padStart(6, '0')}`;
   }
 
-  private withSla(ticket: Ticket & { category?: { slaHours: number } | null }) {
+  private withSla(ticket: Ticket & { category?: { slaHours: number } | null; group?: { name: string } | null }) {
     if (!ticket.category) return { ...ticket, slaAtRisk: false, slaBreached: false };
     const hoursElapsed = (Date.now() - new Date(ticket.createdAt).getTime()) / 3_600_000;
     const isOpen = ticket.status !== 'resolved' && ticket.status !== 'closed';
@@ -112,19 +112,30 @@ export class TicketsService {
     return this.withSla(ticket);
   }
 
-  /**
-   * Creates a ticket from an inbound email (no logged-in user). Lands in the
-   * "Bandeja de Entrada" queue for manual triage, unless that category has
-   * its own default assignee.
+/**
+   * Creates a ticket from an inbound email (no logged-in user). `categoryId`
+   * (and optionally `groupId`/`priority`) come from ClassificationRulesService
+   * — when omitted, falls back to the "Bandeja de Entrada" queue for manual
+   * triage, unless that category has its own default assignee.
    */
-  async createFromEmail(params: { title: string; description: string; requesterEmail: string; requesterName?: string }) {
+  async createFromEmail(params: {
+    title: string;
+    description: string;
+    requesterEmail: string;
+    requesterName?: string;
+    categoryId?: string;
+    groupId?: string;
+    priority?: TicketPriority;
+  }) {
     const systemUser = await this.prisma.user.findUnique({
       where: { email: 'sistema@nextoshelpdesk.com.mx' },
     });
     if (!systemUser) {
       throw new NotFoundException('Usuario de sistema no configurado');
     }
-    const category = await this.prisma.category.findFirst({ where: { name: 'Bandeja de Entrada' } });
+    const category = params.categoryId
+      ? await this.prisma.category.findUnique({ where: { id: params.categoryId } })
+      : await this.prisma.category.findFirst({ where: { name: 'Bandeja de Entrada' } });
     if (!category) {
       throw new NotFoundException('Categoría de bandeja de entrada no configurada');
     }
@@ -137,9 +148,10 @@ export class TicketsService {
         title: params.title,
         description: params.description,
         categoryId: category.id,
-        groupId: category.groupId,
-        priority: 'medium',
+        groupId: params.groupId ?? category.groupId,
+        priority: params.priority ?? 'medium',
         status: 'new',
+        source: 'email',
         createdById: systemUser.id,
         requesterEmail: params.requesterEmail,
         requesterName: params.requesterName,
@@ -148,13 +160,29 @@ export class TicketsService {
       },
       include: TICKET_INCLUDE,
     });
-    await this.history.create(ticket.id, systemUser.id, 'created');
+    await this.history.create(ticket.id, systemUser.id, 'created_from_email');
     this.events.emit(TICKET_CREATED, new TicketCreatedEvent(ticket, systemUser.id));
     if (assignedToId) {
       await this.history.create(ticket.id, systemUser.id, 'assigned', 'assignedToId', null, assignedToId);
       this.events.emit(TICKET_ASSIGNED, new TicketAssignedEvent(ticket, null, assignedToId, systemUser.id));
     }
     return this.withSla(ticket);
+  }
+
+  /** Used by ThreadMatcherService to route email replies to the right ticket. */
+  async findByFolio(folio: string) {
+    return this.prisma.ticket.findUnique({ where: { folio }, include: TICKET_INCLUDE });
+  }
+
+  /** The "system" actor used for tickets/comments created from inbound email. */
+  async getSystemUser() {
+    const systemUser = await this.prisma.user.findUnique({
+      where: { email: 'sistema@nextoshelpdesk.com.mx' },
+    });
+    if (!systemUser) {
+      throw new NotFoundException('Usuario de sistema no configurado');
+    }
+    return systemUser;
   }
 
   async findAll(query: QueryTicketsDto, user: AuthUser) {

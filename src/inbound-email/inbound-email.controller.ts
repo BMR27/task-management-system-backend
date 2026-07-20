@@ -2,27 +2,12 @@ import { Controller, Post, Req, Headers, Logger, HttpCode, HttpStatus } from '@n
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { Webhook } from 'svix';
-import { TicketsService } from '../tickets/tickets.service';
-import { MailService } from '../mail/mail.service';
-import { ticketReceivedTemplate } from '../mail/templates/templates';
-
-function parseFromHeader(from: string): { email: string; name?: string } {
-  const match = from.match(/^(.*)<(.+)>$/);
-  if (match) {
-    const name = match[1].replace(/"/g, '').trim();
-    return { email: match[2].trim(), name: name || undefined };
-  }
-  return { email: from.trim() };
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+import { PrismaService } from '../prisma/prisma.service';
+import { EMAIL_INBOUND_QUEUE } from '../email-processing/email-processing.constants';
+import { EmailInboundJobData } from '../email-processing/email.processor';
 
 @Controller('webhooks')
 export class InboundEmailController {
@@ -30,8 +15,8 @@ export class InboundEmailController {
 
   constructor(
     private config: ConfigService,
-    private ticketsService: TicketsService,
-    private mail: MailService,
+    private prisma: PrismaService,
+    @InjectQueue(EMAIL_INBOUND_QUEUE) private queue: Queue<EmailInboundJobData>,
   ) {}
 
   @Post('resend-inbound')
@@ -66,40 +51,43 @@ export class InboundEmailController {
       return { ok: true };
     }
 
-    const emailId = event.data?.email_id;
-    if (!emailId) return { ok: true };
+    const resendEmailId = event.data?.email_id;
+    if (!resendEmailId) return { ok: true };
 
-    const apiKey = this.config.get<string>('RESEND_API_KEY');
-    const res = await fetch(`https://api.resend.com/emails/receiving/${emailId}`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
-    if (!res.ok) {
-      this.logger.error(`No se pudo obtener el correo ${emailId} de Resend: ${res.status}`);
-      return { ok: false };
-    }
-    const email = (await res.json()) as { from?: string; subject?: string; text?: string | null; html?: string };
+    // The Message-ID header (when Resend forwards it) is the durable dedupe
+    // key — falling back to Resend's own email id keeps every legacy event
+    // without one still deduplicated, just scoped to Resend instead of SMTP.
+    const messageId: string = event.data?.headers?.['Message-Id'] ?? event.data?.message_id ?? resendEmailId;
 
-    const fromRaw = email.from ?? event.data.from ?? '';
-    const { email: requesterEmail, name: requesterName } = parseFromHeader(fromRaw);
-    if (!requesterEmail) {
-      this.logger.warn(`Correo entrante ${emailId} sin remitente identificable, se descarta`);
+    const existing = await this.prisma.emailMessage.findUnique({ where: { messageId } });
+    if (existing) {
+      this.logger.log(`Correo ${messageId} ya fue recibido antes, se ignora (dedupe)`);
       return { ok: true };
     }
 
-    const subject = email.subject || event.data.subject || '(Sin asunto)';
-    const description = email.text?.trim() || (email.html ? stripHtml(email.html) : '') || '(Sin contenido)';
+    let record;
+    try {
+      record = await this.prisma.emailMessage.create({
+        data: {
+          direction: 'inbound',
+          messageId,
+          status: 'pending',
+          rawPayload: event,
+          subject: event.data?.subject,
+          fromEmail: event.data?.from,
+        },
+      });
+    } catch (err) {
+      // Unique constraint race (two webhook deliveries at once) — safe to
+      // no-op, the other request already created the row and enqueued it.
+      this.logger.warn(`No se pudo registrar EmailMessage ${messageId} (probable duplicado): ${(err as Error).message}`);
+      return { ok: true };
+    }
 
-    const ticket = await this.ticketsService.createFromEmail({
-      title: subject,
-      description,
-      requesterEmail,
-      requesterName,
-    });
-
-    await this.mail.send(
-      requesterEmail,
-      `Hemos recibido tu solicitud — ${ticket.folio}`,
-      ticketReceivedTemplate(ticket.folio, ticket.title),
+    await this.queue.add(
+      'inbound-email',
+      { emailMessageId: record.id, resendEmailId },
+      { jobId: messageId },
     );
 
     return { ok: true };

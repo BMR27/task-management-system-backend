@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
+import { BullModule } from '@nestjs/bullmq';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
@@ -17,12 +18,20 @@ import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
 import { HealthModule } from './health/health.module';
 import { InboundEmailModule } from './inbound-email/inbound-email.module';
+import { EmailProcessingModule } from './email-processing/email-processing.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        connection: { url: config.get<string>('REDIS_URL') ?? 'redis://localhost:6379' },
+      }),
+    }),
     PrismaModule,
     AuthModule,
     UsersModule,
@@ -38,6 +47,7 @@ import { InboundEmailModule } from './inbound-email/inbound-email.module';
     SettingsModule,
     HealthModule,
     InboundEmailModule,
+    EmailProcessingModule,
   ],
 })
 export class AppModule {}

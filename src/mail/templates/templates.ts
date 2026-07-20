@@ -82,13 +82,14 @@ export function newCommentTemplate(folio: string, title: string, author: string,
   );
 }
 
-export function ticketReceivedTemplate(folio: string, title: string) {
+export function ticketReceivedTemplate(folio: string, title: string, areaName?: string) {
   return wrap(
     'Hemos recibido tu solicitud',
     `<p style="margin:0 0 10px;">Tu solicitud quedó registrada como:</p>
      <p style="margin:0 0 4px;">${folioBadge(folio)}</p>
      <p style="margin:8px 0 16px; font-style:italic;">"${title}"</p>
-     <p style="margin:0;">Te avisaremos a este mismo correo cuando quede resuelta.</p>`,
+     ${areaName ? `<p style="margin:0 0 10px;">Área asignada: <b>${areaName}</b></p>` : ''}
+     <p style="margin:0;">En breve uno de nuestros agentes atenderá tu caso. Te avisaremos a este mismo correo cuando quede resuelta, y puedes responder este correo para agregar información.</p>`,
   );
 }
 
@@ -98,6 +99,14 @@ export function ticketResolvedExternalTemplate(folio: string, title: string) {
     `<p style="margin:0 0 10px;">${folioBadge(folio)}</p>
      <p style="margin:8px 0 16px; font-style:italic;">"${title}"</p>
      <p style="margin:0;">Este ticket ha sido marcado como <b style="color:#059669;">resuelto</b>. Si tu solicitud no quedó atendida, responde a este correo para reabrirla.</p>`,
+  );
+}
+
+export function newCommentExternalTemplate(folio: string, title: string, author: string) {
+  return wrap(
+    'Nueva respuesta en tu ticket',
+    `<p style="margin:0 0 10px;">${folioBadge(folio)} <span style="color:#71717a;">"${title}"</span></p>
+     <p style="margin:12px 0 0;"><b>${author}</b> respondió tu solicitud. Puedes responder este correo si necesitas agregar algo más.</p>`,
   );
 }
 

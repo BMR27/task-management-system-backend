@@ -7,5 +7,6 @@ import { HistoryModule } from '../history/history.module';
   imports: [HistoryModule],
   controllers: [CommentsController],
   providers: [CommentsService],
+  exports: [CommentsService],
 })
 export class CommentsModule {}
