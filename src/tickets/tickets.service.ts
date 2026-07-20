@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Prisma, Ticket, TicketPriority, TicketStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,6 +12,7 @@ import {
   TicketAssignedEvent,
   TicketCreatedEvent,
   TicketStatusChangedEvent,
+  COMMENT_CREATED,
   TICKET_ASSIGNED,
   TICKET_CREATED,
   TICKET_STATUS_CHANGED,
@@ -67,6 +68,51 @@ export class TicketsService {
     if (categoryDefaultAssigneeId) return categoryDefaultAssigneeId;
     const group = await this.prisma.group.findUnique({ where: { id: groupId }, select: { leaderId: true } });
     return group?.leaderId ?? undefined;
+  }
+
+  /**
+   * A ticket can't be marked resolved/closed without a comment documenting
+   * the solution. Reuses the most recent resolution comment when one
+   * already exists (e.g. closing after it was already resolved, or
+   * re-resolving after a reopen without new notes) — returns its content
+   * for the confirmation email, or creates a fresh one when provided.
+   */
+  private async ensureResolutionComment(params: {
+    ticket: Ticket;
+    newStatus: TicketStatus;
+    resolutionComment?: string;
+    userId: string;
+  }): Promise<string | undefined> {
+    const { ticket, newStatus, resolutionComment, userId } = params;
+    if (newStatus !== 'resolved' && newStatus !== 'closed') return undefined;
+
+    const trimmed = resolutionComment?.trim();
+    if (trimmed) {
+      const comment = await this.prisma.comment.create({
+        data: { ticketId: ticket.id, userId, content: trimmed, type: 'public', isResolution: true },
+      });
+      await this.history.create(ticket.id, userId, 'comment');
+      this.events.emit(
+        COMMENT_CREATED,
+        new CommentCreatedEvent(
+          { id: comment.id, ticketId: ticket.id, userId, content: trimmed, type: 'public', source: 'web' },
+          ticket,
+          userId,
+        ),
+      );
+      return trimmed;
+    }
+
+    const existingResolution = await this.prisma.comment.findFirst({
+      where: { ticketId: ticket.id, isResolution: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!existingResolution) {
+      throw new BadRequestException(
+        'Debes agregar un comentario con la solución antes de marcar el ticket como resuelto o cerrado.',
+      );
+    }
+    return existingResolution.content;
   }
 
   private async assertScope(
@@ -311,7 +357,16 @@ export class TicketsService {
       data.assignedTo = effectiveAssignedToId ? { connect: { id: effectiveAssignedToId } } : { disconnect: true };
       data.assignedAt = effectiveAssignedToId ? new Date() : null;
     }
+    let resolutionText: string | undefined;
     if (dto.status) {
+      if (dto.status !== existing.status) {
+        resolutionText = await this.ensureResolutionComment({
+          ticket: existing,
+          newStatus: dto.status,
+          resolutionComment: dto.resolutionComment,
+          userId: user.id,
+        });
+      }
       Object.assign(data, this.statusSideEffects(existing.status, dto.status));
     }
 
@@ -339,7 +394,7 @@ export class TicketsService {
       await this.history.create(id, user.id, 'status_changed', 'status', existing.status, dto.status);
       this.events.emit(
         TICKET_STATUS_CHANGED,
-        new TicketStatusChangedEvent(updated, existing.status, dto.status, user.id),
+        new TicketStatusChangedEvent(updated, existing.status, dto.status, user.id, resolutionText),
       );
     }
     if (dto.priority && dto.priority !== existing.priority) {
@@ -398,11 +453,15 @@ export class TicketsService {
     return this.withSla(updated);
   }
 
-  async changeStatus(id: string, status: TicketStatus, user: AuthUser) {
+  async changeStatus(id: string, status: TicketStatus, user: AuthUser, resolutionComment?: string) {
     const existing = await this.prisma.ticket.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException('Ticket no encontrado');
     }
+    const resolutionText =
+      status !== existing.status
+        ? await this.ensureResolutionComment({ ticket: existing, newStatus: status, resolutionComment, userId: user.id })
+        : undefined;
     const updated = await this.prisma.ticket.update({
       where: { id },
       data: this.statusSideEffects(existing.status, status),
@@ -411,7 +470,7 @@ export class TicketsService {
     await this.history.create(id, user.id, 'status_changed', 'status', existing.status, status);
     this.events.emit(
       TICKET_STATUS_CHANGED,
-      new TicketStatusChangedEvent(updated, existing.status, status, user.id),
+      new TicketStatusChangedEvent(updated, existing.status, status, user.id, resolutionText),
     );
     return this.withSla(updated);
   }

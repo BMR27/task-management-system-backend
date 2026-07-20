@@ -76,7 +76,7 @@ export class TicketsController {
     @Body() dto: ChangeStatusDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.ticketsService.changeStatus(id, dto.status, user);
+    return this.ticketsService.changeStatus(id, dto.status, user, dto.resolutionComment);
   }
 
   @Permissions('change_status')

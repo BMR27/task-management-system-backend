@@ -194,6 +194,7 @@ model Comment {
   content   String
   type      CommentType @default(public)
   source    CommentSource @default(web)
+  isResolution Boolean  @default(false)
   createdAt DateTime    @default(now())
 
   attachments   Attachment[]

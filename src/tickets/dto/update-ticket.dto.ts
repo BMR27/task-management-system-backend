@@ -35,4 +35,8 @@ export class UpdateTicketDto {
   @IsOptional()
   @IsArray()
   tags?: string[];
+
+  @IsOptional()
+  @IsString()
+  resolutionComment?: string;
 }

@@ -1,5 +1,14 @@
 const LOGO_URL = 'https://www.nextoshelpdesk.com.mx/logimarket-logo.png';
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function folioBadge(folio: string) {
   return `<span style="display:inline-block;background:#e0f2fe;color:#0369a1;font-weight:600;font-size:13px;padding:4px 10px;border-radius:6px;font-family:monospace;">${folio}</span>`;
 }
@@ -93,12 +102,21 @@ export function ticketReceivedTemplate(folio: string, title: string, areaName?: 
   );
 }
 
-export function ticketResolvedExternalTemplate(folio: string, title: string) {
+export function ticketResolvedExternalTemplate(folio: string, title: string, resolutionComment?: string) {
   return wrap(
     'Tu ticket ha sido resuelto',
     `<p style="margin:0 0 10px;">${folioBadge(folio)}</p>
      <p style="margin:8px 0 16px; font-style:italic;">"${title}"</p>
-     <p style="margin:0;">Este ticket ha sido marcado como <b style="color:#059669;">resuelto</b>. Si tu solicitud no quedó atendida, responde a este correo para reabrirla.</p>`,
+     <p style="margin:0 0 12px;">Este ticket ha sido marcado como <b style="color:#059669;">resuelto</b>.</p>
+     ${
+       resolutionComment
+         ? `<div style="margin:0 0 16px; padding:12px 14px; background:#f8fafc; border-radius:8px; border:1px solid #e4e4e7;">
+              <p style="margin:0 0 4px; font-weight:600; color:#0f172a; font-size:13px;">Solución:</p>
+              <p style="margin:0; white-space:pre-wrap;">${escapeHtml(resolutionComment)}</p>
+            </div>`
+         : ''
+     }
+     <p style="margin:0;">Si tu solicitud no quedó atendida, responde a este correo para reabrirla.</p>`,
   );
 }
 

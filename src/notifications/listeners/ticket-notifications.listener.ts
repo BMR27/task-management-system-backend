@@ -109,7 +109,7 @@ export class TicketNotificationsListener {
 
   @OnEvent(TICKET_STATUS_CHANGED)
   async onStatusChanged(event: TicketStatusChangedEvent) {
-    const { ticket, oldStatus, newStatus, actorId } = event;
+    const { ticket, oldStatus, newStatus, actorId, resolutionComment } = event;
     const settings = await this.settings.get();
     const url = this.ticketUrl(ticket.id);
 
@@ -120,7 +120,7 @@ export class TicketNotificationsListener {
       await this.mail.send(
         ticket.requesterEmail,
         `Tu ticket ${ticket.folio} ha sido resuelto`,
-        ticketResolvedExternalTemplate(ticket.folio, ticket.title),
+        ticketResolvedExternalTemplate(ticket.folio, ticket.title, resolutionComment),
         { ticketId: ticket.id },
       );
     }

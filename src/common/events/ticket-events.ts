@@ -27,6 +27,7 @@ export class TicketStatusChangedEvent {
     public oldStatus: string,
     public newStatus: string,
     public actorId: string,
+    public resolutionComment?: string,
   ) {}
 }
 
