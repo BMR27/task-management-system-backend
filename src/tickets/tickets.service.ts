@@ -55,6 +55,20 @@ export class TicketsService {
     return { ...ticket, slaAtRisk, slaBreached };
   }
 
+  /**
+   * Auto-assignment target for a new/reclassified ticket: the category's
+   * default agent, or — when the category has none configured — the
+   * supervisor (Group.leaderId) of the ticket's group.
+   */
+  private async resolveAutoAssignee(
+    categoryDefaultAssigneeId: string | null | undefined,
+    groupId: string,
+  ): Promise<string | undefined> {
+    if (categoryDefaultAssigneeId) return categoryDefaultAssigneeId;
+    const group = await this.prisma.group.findUnique({ where: { id: groupId }, select: { leaderId: true } });
+    return group?.leaderId ?? undefined;
+  }
+
   private async assertScope(
     user: AuthUser,
     ticket: { id: string; createdById: string; assignedToId: string | null },
@@ -82,8 +96,9 @@ export class TicketsService {
       throw new NotFoundException('Categoría no encontrada');
     }
     const groupId = dto.groupId || category.groupId;
-    // Auto-assign to the category's default agent when the caller didn't pick someone explicitly.
-    const assignedToId = dto.assignedToId ?? category.defaultAssigneeId ?? undefined;
+    // Auto-assign to the category's default agent when the caller didn't pick someone
+    // explicitly; fall back to the group's supervisor when the category has none.
+    const assignedToId = dto.assignedToId ?? (await this.resolveAutoAssignee(category.defaultAssigneeId, groupId));
 
     const folio = await this.nextFolio();
     const ticket = await this.prisma.ticket.create({
@@ -139,7 +154,8 @@ export class TicketsService {
     if (!category) {
       throw new NotFoundException('Categoría de bandeja de entrada no configurada');
     }
-    const assignedToId = category.defaultAssigneeId ?? undefined;
+    const groupId = params.groupId ?? category.groupId;
+    const assignedToId = await this.resolveAutoAssignee(category.defaultAssigneeId, groupId);
 
     const folio = await this.nextFolio();
     const ticket = await this.prisma.ticket.create({
@@ -148,7 +164,7 @@ export class TicketsService {
         title: params.title,
         description: params.description,
         categoryId: category.id,
-        groupId: params.groupId ?? category.groupId,
+        groupId,
         priority: params.priority ?? 'medium',
         status: 'new',
         source: 'email',
@@ -275,8 +291,9 @@ export class TicketsService {
       !existing.assignedToId
     ) {
       const newCategory = await this.prisma.category.findUnique({ where: { id: dto.categoryId } });
-      if (newCategory?.defaultAssigneeId) {
-        effectiveAssignedToId = newCategory.defaultAssigneeId;
+      if (newCategory) {
+        const targetGroupId = dto.groupId || newCategory.groupId || existing.groupId;
+        effectiveAssignedToId = await this.resolveAutoAssignee(newCategory.defaultAssigneeId, targetGroupId);
       }
     }
 
