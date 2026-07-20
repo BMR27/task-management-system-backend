@@ -110,6 +110,15 @@ export function newCommentExternalTemplate(folio: string, title: string, author:
   );
 }
 
+export function slaWarningTemplate(folio: string, title: string, url: string) {
+  return wrap(
+    'SLA próximo a vencer',
+    `<p style="margin:0 0 10px;">${folioBadge(folio)} <span style="color:#71717a;">"${title}"</span></p>
+     <p style="margin:12px 0 0;">Este ticket está <b style="color:#d97706;">cerca de incumplir su SLA</b>. Revísalo cuanto antes.</p>`,
+    url,
+  );
+}
+
 export function digestTemplate(items: { title: string; message: string }[]) {
   const rows = items
     .map(

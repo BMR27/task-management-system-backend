@@ -112,7 +112,7 @@ export class TicketsService {
         status: 'new',
         tags: dto.tags?.map((t) => t.trim().toLowerCase()).filter(Boolean) ?? [],
         createdById: user.id,
-        dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
+        dueDate: dto.dueDate ? new Date(dto.dueDate) : new Date(Date.now() + category.slaHours * 3_600_000),
         assignedToId,
         assignedAt: assignedToId ? new Date() : undefined,
       },
@@ -171,6 +171,7 @@ export class TicketsService {
         createdById: systemUser.id,
         requesterEmail: params.requesterEmail,
         requesterName: params.requesterName,
+        dueDate: new Date(Date.now() + category.slaHours * 3_600_000),
         assignedToId,
         assignedAt: assignedToId ? new Date() : undefined,
       },
@@ -280,18 +281,16 @@ export class TicketsService {
     }
     await this.assertScope(user, existing);
 
-    // Reclassifying an unassigned ticket into a category with a default
-    // agent routes it there automatically, mirroring create()'s behavior —
-    // this is how "Mesa de Servicio" triage-by-category becomes automatic.
+    // Reclassifying a ticket into a different category re-derives its due
+    // date from the new category's SLA (relative to when it was created),
+    // and — when it's still unassigned — routes it to that category's
+    // default agent, mirroring create()'s behavior ("Mesa de Servicio"
+    // triage-by-category becomes automatic).
     let effectiveAssignedToId = dto.assignedToId;
-    if (
-      effectiveAssignedToId === undefined &&
-      dto.categoryId &&
-      dto.categoryId !== existing.categoryId &&
-      !existing.assignedToId
-    ) {
-      const newCategory = await this.prisma.category.findUnique({ where: { id: dto.categoryId } });
-      if (newCategory) {
+    let newCategory: { defaultAssigneeId: string | null; groupId: string; slaHours: number } | null = null;
+    if (dto.categoryId && dto.categoryId !== existing.categoryId) {
+      newCategory = await this.prisma.category.findUnique({ where: { id: dto.categoryId } });
+      if (newCategory && effectiveAssignedToId === undefined && !existing.assignedToId) {
         const targetGroupId = dto.groupId || newCategory.groupId || existing.groupId;
         effectiveAssignedToId = await this.resolveAutoAssignee(newCategory.defaultAssigneeId, targetGroupId);
       }
@@ -304,6 +303,9 @@ export class TicketsService {
       tags: dto.tags?.map((t) => t.trim().toLowerCase()).filter(Boolean),
     };
     if (dto.categoryId) data.category = { connect: { id: dto.categoryId } };
+    if (newCategory) {
+      data.dueDate = new Date(new Date(existing.createdAt).getTime() + newCategory.slaHours * 3_600_000);
+    }
     if (dto.groupId) data.group = { connect: { id: dto.groupId } };
     if (effectiveAssignedToId !== undefined) {
       data.assignedTo = effectiveAssignedToId ? { connect: { id: effectiveAssignedToId } } : { disconnect: true };
@@ -368,6 +370,8 @@ export class TicketsService {
       if (oldStatus === 'resolved' || oldStatus === 'closed') {
         data.resolvedAt = null;
         data.closedAt = null;
+        // Reopening lets the SLA warning fire again if it's still at risk/breached.
+        data.slaWarningSentAt = null;
       }
     }
     return data;

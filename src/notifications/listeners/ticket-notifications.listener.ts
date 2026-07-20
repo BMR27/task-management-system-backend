@@ -10,7 +10,6 @@ import {
   ticketAssignedTemplate,
   ticketCreatedTemplate,
   statusChangedTemplate,
-  newCommentTemplate,
   newCommentExternalTemplate,
   ticketResolvedExternalTemplate,
 } from '../../mail/templates/templates';
@@ -155,27 +154,25 @@ export class TicketNotificationsListener {
   @OnEvent(COMMENT_CREATED)
   async onCommentCreated(event: CommentCreatedEvent) {
     const { comment, ticket, actorId } = event;
-    const settings = await this.settings.get();
-    const url = this.ticketUrl(ticket.id);
     const recipientIds = new Set<string>();
     if (ticket.createdById !== actorId) recipientIds.add(ticket.createdById);
     if (ticket.assignedToId && ticket.assignedToId !== actorId) recipientIds.add(ticket.assignedToId);
 
     const author = await this.prisma.user.findUnique({ where: { id: actorId } });
 
+    // New comments only notify in-app — no email, to avoid inbox noise on
+    // every reply (unlike ticket_created/assigned/status_changed, which
+    // still email per the user's settings toggles).
     for (const userId of recipientIds) {
       const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (!user) continue;
       if (comment.type === 'internal' && user.role === 'user') continue;
-      await this.notifyAndMaybeEmail(
+      await this.notifications.create(
         user.id,
-        user.email,
         'new_comment',
         `Nuevo comentario en ${ticket.folio}`,
         comment.content.slice(0, 140),
         ticket.id,
-        newCommentTemplate(ticket.folio, ticket.title, author?.name ?? 'Alguien', url),
-        settings.emailOnComment,
       );
     }
 

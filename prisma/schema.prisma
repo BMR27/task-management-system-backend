@@ -38,6 +38,7 @@ enum NotificationType {
   ticket_assigned
   status_changed
   new_comment
+  sla_warning
 }
 
 enum DigestFrequency {
@@ -163,6 +164,7 @@ model Ticket {
   dueDate      DateTime?
   resolvedAt   DateTime?
   closedAt     DateTime?
+  slaWarningSentAt DateTime?
   tags         String[]       @default([])
   requesterEmail String?
   requesterName  String?
