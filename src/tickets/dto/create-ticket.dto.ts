@@ -32,4 +32,9 @@ export class CreateTicketDto {
   @IsOptional()
   @IsString()
   assignedToId?: string;
+
+  /** Agents/supervisors/admins can create a ticket on behalf of another user. */
+  @IsOptional()
+  @IsString()
+  onBehalfOfUserId?: string;
 }

@@ -141,6 +141,22 @@ export class TicketsService {
     if (!category) {
       throw new NotFoundException('Categoría no encontrada');
     }
+
+    // Agents/supervisors/admins can create a ticket "on behalf of" another
+    // user — the ticket is then owned by (and visible to) that user, while
+    // the history entry still records who actually created it.
+    let createdById = user.id;
+    if (dto.onBehalfOfUserId && dto.onBehalfOfUserId !== user.id) {
+      if (user.role === 'user') {
+        throw new ForbiddenException('No puedes crear tickets a nombre de otro usuario');
+      }
+      const onBehalfOf = await this.prisma.user.findUnique({ where: { id: dto.onBehalfOfUserId } });
+      if (!onBehalfOf) {
+        throw new NotFoundException('Usuario no encontrado');
+      }
+      createdById = onBehalfOf.id;
+    }
+
     const groupId = dto.groupId || category.groupId;
     // Auto-assign to the category's default agent when the caller didn't pick someone
     // explicitly; fall back to the group's supervisor when the category has none.
@@ -157,14 +173,18 @@ export class TicketsService {
         priority: dto.priority ?? 'medium',
         status: 'new',
         tags: dto.tags?.map((t) => t.trim().toLowerCase()).filter(Boolean) ?? [],
-        createdById: user.id,
+        createdById,
         dueDate: dto.dueDate ? new Date(dto.dueDate) : new Date(Date.now() + category.slaHours * 3_600_000),
         assignedToId,
         assignedAt: assignedToId ? new Date() : undefined,
       },
       include: TICKET_INCLUDE,
     });
-    await this.history.create(ticket.id, user.id, 'created');
+    await this.history.create(
+      ticket.id,
+      user.id,
+      createdById !== user.id ? 'created_on_behalf' : 'created',
+    );
     this.events.emit(TICKET_CREATED, new TicketCreatedEvent(ticket, user.id));
     if (assignedToId) {
       await this.history.create(ticket.id, user.id, 'assigned', 'assignedToId', null, assignedToId);
