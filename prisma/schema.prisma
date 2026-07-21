@@ -82,6 +82,7 @@ model User {
   email            String    @unique
   passwordHash     String
   name             String
+  phone            String?
   role             UserRole  @default(user)
   groupId          String?
   group            Group?    @relation("GroupMembers", fields: [groupId], references: [id])

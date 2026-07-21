@@ -20,4 +20,8 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   groupId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
 }
