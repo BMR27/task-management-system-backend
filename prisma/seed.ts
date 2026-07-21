@@ -15,6 +15,7 @@ const groups = [
   { id: 'g8', name: 'Mantenimiento', description: 'Mantenimiento de instalaciones', color: '#f97316' },
   { id: 'g9', name: 'Seguridad', description: 'Seguridad patrimonial', color: '#ef4444' },
   { id: 'g10', name: 'Dirección', description: 'Alta dirección', color: '#6366f1' },
+  { id: 'g11', name: 'Comercial', description: 'Ventas y atención a clientes', color: '#14b8a6' },
 ];
 
 const users = [
@@ -41,6 +42,10 @@ const categories = [
   { id: 'c8', name: 'Mantenimiento', description: 'Reparaciones y mantenimiento', icon: 'wrench', groupId: 'g8', slaHours: 24 },
   { id: 'c9', name: 'Solicitud RH', description: 'Trámites de recursos humanos', icon: 'users', groupId: 'g4', slaHours: 48 },
   { id: 'c10', name: 'Finanzas', description: 'Solicitudes financieras', icon: 'dollar-sign', groupId: 'g5', slaHours: 24 },
+  { id: 'c11', name: 'Cotizaciones', description: 'Elaboración y seguimiento de cotizaciones', icon: 'file-text', groupId: 'g11', slaHours: 24 },
+  { id: 'c12', name: 'Atención a Clientes', description: 'Dudas, quejas y solicitudes de clientes', icon: 'headphones', groupId: 'g11', slaHours: 8 },
+  { id: 'c13', name: 'Contratos y Facturación', description: 'Elaboración de contratos y facturación a clientes', icon: 'file-signature', groupId: 'g11', slaHours: 48 },
+  { id: 'c14', name: 'Prospección de Ventas', description: 'Seguimiento a nuevos prospectos y oportunidades', icon: 'trending-up', groupId: 'g11', slaHours: 24 },
 ];
 
 const tickets = [
