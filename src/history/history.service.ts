@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuthUser } from '../common/decorators/current-user.decorator';
 
 @Injectable()
 export class HistoryService {
@@ -33,8 +35,29 @@ export class HistoryService {
     });
   }
 
-  findRecent(limit = 10) {
+  findRecent(user: AuthUser, limit = 10) {
+    const where: Prisma.HistoryEntryWhereInput = {};
+
+    if (user.role === 'user') {
+      where.ticket = { createdById: user.id };
+    } else if (user.role === 'agent') {
+      where.ticket = {
+        OR: [
+          { assignedToId: user.id },
+          {
+            history: {
+              some: {
+                field: 'assignedToId',
+                OR: [{ oldValue: user.id }, { newValue: user.id }],
+              },
+            },
+          },
+        ],
+      };
+    }
+
     return this.prisma.historyEntry.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
       take: limit,
       include: {
