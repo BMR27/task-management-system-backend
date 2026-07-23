@@ -120,11 +120,28 @@ export function ticketResolvedExternalTemplate(folio: string, title: string, res
   );
 }
 
-export function newCommentExternalTemplate(folio: string, title: string, author: string) {
+export function newCommentExternalTemplate(
+  folio: string,
+  title: string,
+  author: string,
+  content: string,
+  imageUrls: string[] = [],
+) {
+  const imagesHtml = imageUrls
+    .map(
+      (src) =>
+        `<div style="margin:10px 0;">
+           <img src="${src}" alt="Adjunto" style="max-width:100%; border-radius:8px; border:1px solid #e4e4e7; display:block;" />
+         </div>`,
+    )
+    .join('');
   return wrap(
     'Nueva respuesta en tu ticket',
     `<p style="margin:0 0 10px;">${folioBadge(folio)} <span style="color:#71717a;">"${title}"</span></p>
-     <p style="margin:12px 0 0;"><b>${author}</b> respondió tu solicitud. Puedes responder este correo si necesitas agregar algo más.</p>`,
+     <p style="margin:12px 0 10px;"><b>${author}</b> respondió tu solicitud:</p>
+     <div style="margin:0 0 12px; padding:12px 14px; background:#f8fafc; border-radius:8px; border:1px solid #e4e4e7; white-space:pre-wrap;">${escapeHtml(content)}</div>
+     ${imagesHtml}
+     <p style="margin:12px 0 0;">Puedes responder este correo si necesitas agregar algo más.</p>`,
   );
 }
 

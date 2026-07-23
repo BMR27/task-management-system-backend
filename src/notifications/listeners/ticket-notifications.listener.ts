@@ -41,6 +41,30 @@ export class TicketNotificationsListener {
     return `${base}/tickets/${ticketId}`;
   }
 
+  private attachmentUrl(path: string) {
+    const base = this.config.get<string>('APP_URL') ?? 'http://localhost:4000';
+    return `${base}${path}`;
+  }
+
+  /**
+   * Comment text and attachments are saved in two separate requests (the
+   * frontend uploads files right after creating the comment), so this event
+   * can fire before an image attachment exists. Wait briefly, then re-read
+   * the comment from the DB so the email can include any attachments.
+   */
+  private async waitForCommentAttachments(commentId: string) {
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+    const comment = await this.prisma.comment.findUnique({
+      where: { id: commentId },
+      include: { attachments: true },
+    });
+    const imageUrls =
+      comment?.attachments
+        .filter((a) => a.type.startsWith('image/'))
+        .map((a) => this.attachmentUrl(a.url)) ?? [];
+    return imageUrls;
+  }
+
   private async notifyAndMaybeEmail(
     userId: string,
     email: string,
@@ -176,16 +200,38 @@ export class TicketNotificationsListener {
       );
     }
 
-    // The external requester has no in-app account — email them directly on
-    // public replies, unless this very comment came from their own email
-    // reply (avoids an infinite reply loop).
-    if (comment.type === 'public' && comment.source !== 'email' && ticket.requesterEmail) {
+    if (comment.type !== 'public' || comment.source === 'email') return;
+
+    const authorName = author?.name ?? 'Un agente';
+
+    // The external requester (inbound-email ticket, no in-app account) has
+    // no other way to see replies — email them directly, unless this very
+    // comment came from their own email reply (avoids an infinite loop).
+    if (ticket.requesterEmail) {
+      const imageUrls = await this.waitForCommentAttachments(comment.id);
       await this.mail.send(
         ticket.requesterEmail,
         `Nueva respuesta en tu ticket ${ticket.folio}`,
-        newCommentExternalTemplate(ticket.folio, ticket.title, author?.name ?? 'Un agente'),
+        newCommentExternalTemplate(ticket.folio, ticket.title, authorName, comment.content, imageUrls),
         { ticketId: ticket.id },
       );
+      return;
+    }
+
+    // Regular 'user'-role creators (e.g. delivery/logistics contacts) rarely
+    // check the app — email them too, always, regardless of digest settings,
+    // since in-app notifications alone aren't practical for them.
+    if (ticket.createdById !== actorId) {
+      const creator = await this.prisma.user.findUnique({ where: { id: ticket.createdById } });
+      if (creator?.role === 'user') {
+        const imageUrls = await this.waitForCommentAttachments(comment.id);
+        await this.mail.send(
+          creator.email,
+          `Nueva respuesta en tu ticket ${ticket.folio}`,
+          newCommentExternalTemplate(ticket.folio, ticket.title, authorName, comment.content, imageUrls),
+          { ticketId: ticket.id },
+        );
+      }
     }
   }
 }
