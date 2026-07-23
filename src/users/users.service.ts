@@ -3,6 +3,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 const SAFE_SELECT = {
   id: true,
@@ -77,6 +78,16 @@ export class UsersService {
         isActive: dto.isActive,
         avatar: dto.avatar,
       },
+      select: SAFE_SELECT,
+    });
+  }
+
+  async resetPassword(id: string, dto: ResetPasswordDto) {
+    await this.findOne(id);
+    const passwordHash = await bcrypt.hash(dto.newPassword, 10);
+    return this.prisma.user.update({
+      where: { id },
+      data: { passwordHash, mustChangePassword: true },
       select: SAFE_SELECT,
     });
   }
