@@ -62,6 +62,9 @@ importers:
       cuid:
         specifier: ^3.0.0
         version: 3.0.0
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
       ioredis:
         specifier: ^5.11.1
         version: 5.11.1
