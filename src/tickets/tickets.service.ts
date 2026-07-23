@@ -117,12 +117,12 @@ export class TicketsService {
 
   private async assertScope(
     user: AuthUser,
-    ticket: { id: string; createdById: string; assignedToId: string | null },
+    ticket: { id: string; createdById: string; assignedToId: string | null; groupId: string },
   ) {
     if (user.role === 'user' && ticket.createdById !== user.id) {
       throw new ForbiddenException('No tienes acceso a este ticket');
     }
-    if (user.role === 'agent' && ticket.assignedToId !== user.id) {
+    if (user.role === 'agent' && ticket.groupId !== user.groupId && ticket.assignedToId !== user.id) {
       const everAssigned = await this.prisma.historyEntry.findFirst({
         where: {
           ticketId: ticket.id,
@@ -277,24 +277,32 @@ export class TicketsService {
     if (user.role === 'user') {
       where.createdById = user.id;
     } else if (user.role === 'agent') {
-      where.OR = [
-        { assignedToId: user.id },
-        {
-          history: {
-            some: {
-              field: 'assignedToId',
-              OR: [{ oldValue: user.id }, { newValue: user.id }],
+      if (user.groupId) {
+        where.groupId = user.groupId;
+      } else {
+        where.OR = [
+          { assignedToId: user.id },
+          {
+            history: {
+              some: {
+                field: 'assignedToId',
+                OR: [{ oldValue: user.id }, { newValue: user.id }],
+              },
             },
           },
-        },
-      ];
+        ];
+      }
     } else if (query.assignedToId?.length) {
       where.assignedToId = { in: query.assignedToId };
     }
 
     if (query.status?.length) where.status = { in: query.status as TicketStatus[] };
     if (query.priority?.length) where.priority = { in: query.priority as any };
-    if (query.groupId?.length) where.groupId = { in: query.groupId };
+    // An agent's groupId scope above is a hard security boundary — never let
+    // the group filter query param override it with a different group.
+    if (query.groupId?.length && !(user.role === 'agent' && user.groupId)) {
+      where.groupId = { in: query.groupId };
+    }
     if (query.categoryId?.length) where.categoryId = { in: query.categoryId };
     if (query.search) {
       const searchOr: Prisma.TicketWhereInput[] = [

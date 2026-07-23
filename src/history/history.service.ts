@@ -41,19 +41,21 @@ export class HistoryService {
     if (user.role === 'user') {
       where.ticket = { createdById: user.id };
     } else if (user.role === 'agent') {
-      where.ticket = {
-        OR: [
-          { assignedToId: user.id },
-          {
-            history: {
-              some: {
-                field: 'assignedToId',
-                OR: [{ oldValue: user.id }, { newValue: user.id }],
+      where.ticket = user.groupId
+        ? { groupId: user.groupId }
+        : {
+            OR: [
+              { assignedToId: user.id },
+              {
+                history: {
+                  some: {
+                    field: 'assignedToId',
+                    OR: [{ oldValue: user.id }, { newValue: user.id }],
+                  },
+                },
               },
-            },
-          },
-        ],
-      };
+            ],
+          };
     }
 
     return this.prisma.historyEntry.findMany({

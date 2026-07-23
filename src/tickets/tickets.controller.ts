@@ -26,17 +26,21 @@ export class TicketsController {
     const where: any = { status: { in: ['new', 'in_progress'] } };
     if (user.role === 'user') where.createdById = user.id;
     if (user.role === 'agent') {
-      where.OR = [
-        { assignedToId: user.id },
-        {
-          history: {
-            some: {
-              field: 'assignedToId',
-              OR: [{ oldValue: user.id }, { newValue: user.id }],
+      if (user.groupId) {
+        where.groupId = user.groupId;
+      } else {
+        where.OR = [
+          { assignedToId: user.id },
+          {
+            history: {
+              some: {
+                field: 'assignedToId',
+                OR: [{ oldValue: user.id }, { newValue: user.id }],
+              },
             },
           },
-        },
-      ];
+        ];
+      }
     }
     const count = await this.prisma.ticket.count({ where });
     return { count };
