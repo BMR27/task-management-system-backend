@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Get,
   HttpCode,
@@ -50,6 +51,12 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const user = await this.authService.validateCredentials(dto.email, dto.password);
+    if (user.refreshTokenHash && !dto.force) {
+      throw new ConflictException({
+        code: 'SESSION_CONFLICT',
+        message: 'Ya hay una sesión activa con este usuario. Al continuar, esa sesión se cerrará.',
+      });
+    }
     const { accessToken, refreshToken } = await this.authService.issueTokens(user);
     this.setAuthCookies(res, accessToken, refreshToken);
     return { user: this.authService.sanitizeUser(user) };
