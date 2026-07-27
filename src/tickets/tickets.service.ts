@@ -117,8 +117,11 @@ export class TicketsService {
 
   private async assertScope(
     user: AuthUser,
-    ticket: { id: string; createdById: string; assignedToId: string | null; groupId: string },
+    ticket: { id: string; createdById: string; assignedToId: string | null; groupId: string; status: TicketStatus },
   ) {
+    if ((user.role === 'agent' || user.role === 'supervisor') && ticket.status === 'archived') {
+      throw new ForbiddenException('No tienes acceso a este ticket');
+    }
     if (user.role === 'user' && ticket.createdById !== user.id) {
       throw new ForbiddenException('No tienes acceso a este ticket');
     }
@@ -296,7 +299,14 @@ export class TicketsService {
       where.assignedToId = { in: query.assignedToId };
     }
 
-    if (query.status?.length) where.status = { in: query.status as TicketStatus[] };
+    // Archived tickets (closed 3+ days) are hidden from agents/supervisors
+    // regardless of any status filter they try to pass — only admins can see them.
+    if (user.role === 'agent' || user.role === 'supervisor') {
+      const requested = (query.status as TicketStatus[] | undefined)?.filter((s) => s !== 'archived');
+      where.status = requested?.length ? { in: requested } : { not: 'archived' };
+    } else if (query.status?.length) {
+      where.status = { in: query.status as TicketStatus[] };
+    }
     if (query.priority?.length) where.priority = { in: query.priority as any };
     // An agent's groupId scope above is a hard security boundary — never let
     // the group filter query param override it with a different group.
