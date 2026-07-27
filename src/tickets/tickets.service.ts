@@ -18,6 +18,9 @@ import {
   TICKET_STATUS_CHANGED,
 } from '../common/events/ticket-events';
 
+/** Default technician for tickets created from inbound email. */
+const EMAIL_TICKETS_DEFAULT_ASSIGNEE_EMAIL = 'miriam.sanchez@logimarket.com.mx';
+
 const TICKET_INCLUDE = {
   category: true,
   group: true,
@@ -224,7 +227,23 @@ export class TicketsService {
       throw new NotFoundException('Categoría de bandeja de entrada no configurada');
     }
     const groupId = params.groupId ?? category.groupId;
-    const assignedToId = await this.resolveAutoAssignee(category.defaultAssigneeId, groupId);
+    // All email-originated tickets go to the dedicated email-support agent
+    // by default, regardless of the classified category's own default
+    // assignee; falls back to the usual category/group resolution if that
+    // agent's account is missing or deactivated.
+    const emailDefaultAssignee = await this.prisma.user.findFirst({
+      where: { email: EMAIL_TICKETS_DEFAULT_ASSIGNEE_EMAIL, isActive: true },
+    });
+    const assignedToId =
+      emailDefaultAssignee?.id ?? (await this.resolveAutoAssignee(category.defaultAssigneeId, groupId));
+
+    // If the sender's address matches an existing user, the ticket is owned
+    // by that person (visible to them, notifications go to their account)
+    // instead of the generic system user.
+    const requesterUser = await this.prisma.user.findFirst({
+      where: { email: { equals: params.requesterEmail, mode: 'insensitive' } },
+    });
+    const createdById = requesterUser?.id ?? systemUser.id;
 
     const folio = await this.nextFolio();
     const ticket = await this.prisma.ticket.create({
@@ -237,7 +256,7 @@ export class TicketsService {
         priority: params.priority ?? 'medium',
         status: 'new',
         source: 'email',
-        createdById: systemUser.id,
+        createdById,
         requesterEmail: params.requesterEmail,
         requesterName: params.requesterName,
         dueDate: new Date(Date.now() + category.slaHours * 3_600_000),

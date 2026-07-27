@@ -149,8 +149,13 @@ export class TicketNotificationsListener {
       );
     }
 
+    // Already emailed the requester directly above — don't also notify
+    // ticket.createdById here if it resolved to that same person (their
+    // sender address matched an existing account), or they'd get two emails.
+    const requesterAlreadyEmailed = newStatus === 'resolved' && !!ticket.requesterEmail;
+
     const recipients = new Set<string>();
-    if (ticket.createdById !== actorId) recipients.add(ticket.createdById);
+    if (ticket.createdById !== actorId && !requesterAlreadyEmailed) recipients.add(ticket.createdById);
     if (ticket.assignedToId && ticket.assignedToId !== actorId) recipients.add(ticket.assignedToId);
 
     for (const userId of recipients) {
