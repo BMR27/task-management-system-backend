@@ -416,7 +416,7 @@ export class TicketsService {
     }
     let resolutionText: string | undefined;
     if (dto.status) {
-      await this.assertGroupAllowsStatus(dto.groupId || existing.groupId, dto.status);
+      await this.assertGroupAllowsStatus(dto.groupId || existing.groupId, dto.status, user);
       if (dto.status !== existing.status) {
         resolutionText = await this.ensureResolutionComment({
           ticket: existing,
@@ -471,10 +471,12 @@ export class TicketsService {
   /**
    * 'prod_transito'/'prod_entregado' are transit statuses specific to the
    * Operaciones group's product-delivery workflow — reject them for tickets
-   * in any other group.
+   * in any other group. Admins are exempt: they can reclassify any ticket
+   * into these statuses regardless of its group.
    */
-  private async assertGroupAllowsStatus(groupId: string, status: TicketStatus) {
+  private async assertGroupAllowsStatus(groupId: string, status: TicketStatus, user: AuthUser) {
     if (status !== 'prod_transito' && status !== 'prod_entregado') return;
+    if (user.role === 'admin') return;
     const group = await this.prisma.group.findUnique({ where: { id: groupId } });
     if (!group || group.name !== 'Operaciones') {
       throw new BadRequestException(
@@ -531,7 +533,7 @@ export class TicketsService {
     if (!existing) {
       throw new NotFoundException('Ticket no encontrado');
     }
-    await this.assertGroupAllowsStatus(existing.groupId, status);
+    await this.assertGroupAllowsStatus(existing.groupId, status, user);
     const resolutionText =
       status !== existing.status
         ? await this.ensureResolutionComment({ ticket: existing, newStatus: status, resolutionComment, userId: user.id })
