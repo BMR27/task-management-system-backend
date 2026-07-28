@@ -24,6 +24,11 @@ enum TicketStatus {
   archived
 }
 
+enum ShippingType {
+  mensajeria
+  rutas_propias
+}
+
 enum TicketPriority {
   low
   medium
@@ -173,6 +178,7 @@ model Ticket {
   requesterEmail String?
   requesterName  String?
   source       TicketSource   @default(web)
+  shippingType ShippingType?
 
   attachments   Attachment[]
   comments      Comment[]

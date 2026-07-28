@@ -1,5 +1,5 @@
 import { IsArray, IsDateString, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
-import { TicketPriority } from '@prisma/client';
+import { ShippingType, TicketPriority } from '@prisma/client';
 
 export class CreateTicketDto {
   @IsString()
@@ -37,4 +37,9 @@ export class CreateTicketDto {
   @IsOptional()
   @IsString()
   onBehalfOfUserId?: string;
+
+  /** Only valid for tickets in the Operaciones group. */
+  @IsOptional()
+  @IsEnum(ShippingType)
+  shippingType?: ShippingType;
 }

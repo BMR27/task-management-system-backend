@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Prisma, Ticket, TicketPriority, TicketStatus } from '@prisma/client';
+import { Prisma, ShippingType, Ticket, TicketPriority, TicketStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { HistoryService } from '../history/history.service';
 import { AuthUser } from '../common/decorators/current-user.decorator';
@@ -167,6 +167,7 @@ export class TicketsService {
     // Auto-assign to the category's default agent when the caller didn't pick someone
     // explicitly; fall back to the group's supervisor when the category has none.
     const assignedToId = dto.assignedToId ?? (await this.resolveAutoAssignee(category.defaultAssigneeId, groupId));
+    await this.assertShippingTypeChangeAllowed(groupId, null, dto.shippingType, user);
 
     const folio = await this.nextFolio();
     const ticket = await this.prisma.ticket.create({
@@ -183,6 +184,7 @@ export class TicketsService {
         dueDate: dto.dueDate ? new Date(dto.dueDate) : new Date(Date.now() + category.slaHours * 3_600_000),
         assignedToId,
         assignedAt: assignedToId ? new Date() : undefined,
+        shippingType: dto.shippingType,
       },
       include: TICKET_INCLUDE,
     });
@@ -427,6 +429,15 @@ export class TicketsService {
       }
       Object.assign(data, this.statusSideEffects(existing.status, dto.status));
     }
+    if (dto.shippingType !== undefined) {
+      await this.assertShippingTypeChangeAllowed(
+        dto.groupId || existing.groupId,
+        existing.shippingType,
+        dto.shippingType,
+        user,
+      );
+      data.shippingType = dto.shippingType;
+    }
 
     const updated = await this.prisma.ticket.update({
       where: { id },
@@ -481,6 +492,33 @@ export class TicketsService {
     if (!group || group.name !== 'Operaciones') {
       throw new BadRequestException(
         'Este estado solo aplica a tickets del grupo Operaciones',
+      );
+    }
+  }
+
+  /**
+   * 'shippingType' only applies to the Operaciones group's tickets, and
+   * — once an agent (not admin/supervisor) has it already set — can no
+   * longer be changed by an agent; only admin/supervisor can revise it
+   * after that point. `newShippingType === undefined` means "not part of
+   * this request", so it's a no-op.
+   */
+  private async assertShippingTypeChangeAllowed(
+    groupId: string,
+    existingShippingType: ShippingType | null,
+    newShippingType: ShippingType | null | undefined,
+    user: AuthUser,
+  ) {
+    if (newShippingType === undefined) return;
+    if (newShippingType !== null) {
+      const group = await this.prisma.group.findUnique({ where: { id: groupId } });
+      if (!group || group.name !== 'Operaciones') {
+        throw new BadRequestException('El tipo de envío solo aplica a tickets del grupo Operaciones');
+      }
+    }
+    if (existingShippingType !== null && user.role === 'agent') {
+      throw new ForbiddenException(
+        'Solo un administrador o supervisor puede modificar el tipo de envío una vez asignado',
       );
     }
   }

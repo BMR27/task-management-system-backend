@@ -1,5 +1,5 @@
 import { IsArray, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
-import { TicketPriority, TicketStatus } from '@prisma/client';
+import { ShippingType, TicketPriority, TicketStatus } from '@prisma/client';
 
 export class UpdateTicketDto {
   @IsOptional()
@@ -39,4 +39,9 @@ export class UpdateTicketDto {
   @IsOptional()
   @IsString()
   resolutionComment?: string;
+
+  /** Only valid for tickets in the Operaciones group; locked for agents once set. */
+  @IsOptional()
+  @IsEnum(ShippingType)
+  shippingType?: ShippingType | null;
 }
