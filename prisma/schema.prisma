@@ -17,6 +17,8 @@ enum UserRole {
 enum TicketStatus {
   new
   in_progress
+  prod_transito
+  prod_entregado
   resolved
   closed
   archived

@@ -416,6 +416,7 @@ export class TicketsService {
     }
     let resolutionText: string | undefined;
     if (dto.status) {
+      await this.assertGroupAllowsStatus(dto.groupId || existing.groupId, dto.status);
       if (dto.status !== existing.status) {
         resolutionText = await this.ensureResolutionComment({
           ticket: existing,
@@ -467,6 +468,21 @@ export class TicketsService {
     return this.withSla(updated);
   }
 
+  /**
+   * 'prod_transito'/'prod_entregado' are transit statuses specific to the
+   * Operaciones group's product-delivery workflow — reject them for tickets
+   * in any other group.
+   */
+  private async assertGroupAllowsStatus(groupId: string, status: TicketStatus) {
+    if (status !== 'prod_transito' && status !== 'prod_entregado') return;
+    const group = await this.prisma.group.findUnique({ where: { id: groupId } });
+    if (!group || group.name !== 'Operaciones') {
+      throw new BadRequestException(
+        'Este estado solo aplica a tickets del grupo Operaciones',
+      );
+    }
+  }
+
   private statusSideEffects(oldStatus: TicketStatus, newStatus: TicketStatus): Prisma.TicketUpdateInput {
     const data: Prisma.TicketUpdateInput = { status: newStatus };
     if (newStatus === 'resolved') {
@@ -515,6 +531,7 @@ export class TicketsService {
     if (!existing) {
       throw new NotFoundException('Ticket no encontrado');
     }
+    await this.assertGroupAllowsStatus(existing.groupId, status);
     const resolutionText =
       status !== existing.status
         ? await this.ensureResolutionComment({ ticket: existing, newStatus: status, resolutionComment, userId: user.id })

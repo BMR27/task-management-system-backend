@@ -23,7 +23,7 @@ export class TicketsController {
 
   @Get('count')
   async count(@CurrentUser() user: AuthUser) {
-    const where: any = { status: { in: ['new', 'in_progress'] } };
+    const where: any = { status: { in: ['new', 'in_progress', 'prod_transito', 'prod_entregado'] } };
     if (user.role === 'user') where.createdById = user.id;
     if (user.role === 'agent') {
       if (user.groupId) {
