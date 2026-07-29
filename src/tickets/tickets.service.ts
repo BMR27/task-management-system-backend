@@ -509,7 +509,10 @@ export class TicketsService {
     newShippingType: ShippingType | null | undefined,
     user: AuthUser,
   ) {
-    if (newShippingType === undefined) return;
+    // Not part of this request, or resending the same value the ticket
+    // already has (e.g. the edit form always includes the field even when
+    // the user never touched it) — nothing is actually changing here.
+    if (newShippingType === undefined || newShippingType === existingShippingType) return;
     if (newShippingType !== null) {
       const group = await this.prisma.group.findUnique({ where: { id: groupId } });
       if (!group || group.name !== 'Operaciones') {
