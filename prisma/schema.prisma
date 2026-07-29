@@ -206,6 +206,7 @@ model Comment {
   source    CommentSource @default(web)
   isResolution Boolean  @default(false)
   createdAt DateTime    @default(now())
+  editedAt  DateTime?
 
   attachments   Attachment[]
   emailMessages EmailMessage[]
