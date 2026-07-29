@@ -59,7 +59,10 @@
     "rxjs": "^7.8.1",
     "sanitize-html": "^2.12.1",
     "svix": "^1.98.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "@types/express": "^5.0.0",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^24.0.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -67,10 +70,7 @@
     "@nestjs/testing": "^11.0.1",
     "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.10",
-    "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
-    "@types/multer": "^2.2.0",
-    "@types/node": "^24.0.0",
     "@types/nodemailer": "^8.0.1",
     "@types/passport-jwt": "^4.0.1",
     "@types/sanitize-html": "^2.16.1",

@@ -44,6 +44,15 @@ importers:
       '@prisma/client':
         specifier: ^5.22.0
         version: 5.22.0(prisma@5.22.0)
+      '@types/express':
+        specifier: ^5.0.0
+        version: 5.0.6
+      '@types/multer':
+        specifier: ^2.2.0
+        version: 2.2.0
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
       bcrypt:
         specifier: ^6.0.0
         version: 6.0.0
@@ -114,18 +123,9 @@ importers:
       '@types/cookie-parser':
         specifier: ^1.4.10
         version: 1.4.10(@types/express@5.0.6)
-      '@types/express':
-        specifier: ^5.0.0
-        version: 5.0.6
       '@types/jest':
         specifier: ^30.0.0
         version: 30.0.0
-      '@types/multer':
-        specifier: ^2.2.0
-        version: 2.2.0
-      '@types/node':
-        specifier: ^24.0.0
-        version: 24.13.3
       '@types/nodemailer':
         specifier: ^8.0.1
         version: 8.0.1
