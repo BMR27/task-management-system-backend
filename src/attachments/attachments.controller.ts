@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   Controller,
+  Delete,
+  ForbiddenException,
   Param,
   Post,
   UploadedFiles,
@@ -35,5 +37,22 @@ export class AttachmentsController {
       throw new BadRequestException('No se recibió ningún archivo');
     }
     return this.attachmentsService.createForTicket(ticketId, files);
+  }
+
+  @Delete(':attachmentId')
+  async remove(
+    @Param('ticketId') ticketId: string,
+    @Param('attachmentId') attachmentId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const ticket = await this.ticketsService.findOne(ticketId, user);
+    const canDelete =
+      user.role === 'admin' || user.role === 'supervisor' || ticket.assignedToId === user.id;
+    if (!canDelete) {
+      throw new ForbiddenException(
+        'Solo un supervisor, un administrador o el agente asignado pueden eliminar adjuntos',
+      );
+    }
+    return this.attachmentsService.removeFromTicket(ticketId, attachmentId);
   }
 }

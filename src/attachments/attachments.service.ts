@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { mkdirSync, writeFileSync } from 'fs';
+import { unlink } from 'fs/promises';
 import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { safeAttachmentFilename } from './attachment-validation.util';
@@ -16,6 +17,12 @@ export class AttachmentsService {
   private readonly uploadsDir = process.env.UPLOADS_DIR ?? './uploads';
 
   constructor(private prisma: PrismaService) {}
+
+  private async unlinkQuietly(url: string) {
+    await unlink(join(this.uploadsDir, url.replace(/^\/uploads\//, ''))).catch(() => {
+      // File already missing/inaccessible — the DB row is gone either way.
+    });
+  }
 
   /**
    * Persists attachments/embedded images fetched from an inbound email (no
@@ -83,5 +90,15 @@ export class AttachmentsService {
         }),
       ),
     );
+  }
+
+  async removeFromTicket(ticketId: string, attachmentId: string) {
+    const attachment = await this.prisma.attachment.findUnique({ where: { id: attachmentId } });
+    if (!attachment || attachment.ticketId !== ticketId) {
+      throw new NotFoundException('Adjunto no encontrado');
+    }
+    await this.prisma.attachment.delete({ where: { id: attachmentId } });
+    await this.unlinkQuietly(attachment.url);
+    return { ok: true };
   }
 }
