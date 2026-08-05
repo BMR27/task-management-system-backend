@@ -139,6 +139,7 @@ model Category {
   isActive          Boolean  @default(true)
   defaultAssigneeId String?
   defaultAssignee   User?    @relation("CategoryDefaultAssignee", fields: [defaultAssigneeId], references: [id], onDelete: SetNull)
+  defaultPriority   TicketPriority?
 
   tickets Ticket[]
   classificationRules ClassificationRule[]

@@ -1,4 +1,6 @@
-import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+
+const PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
 
 export class UpdateCategoryDto {
   @IsOptional()
@@ -29,4 +31,8 @@ export class UpdateCategoryDto {
   @IsOptional()
   @IsString()
   defaultAssigneeId?: string | null;
+
+  @IsOptional()
+  @IsIn(PRIORITIES)
+  defaultPriority?: (typeof PRIORITIES)[number] | null;
 }

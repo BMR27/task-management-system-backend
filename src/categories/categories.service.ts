@@ -39,6 +39,7 @@ export class CategoriesService {
         slaHours: dto.slaHours,
         isActive: true,
         defaultAssigneeId: dto.defaultAssigneeId || null,
+        defaultPriority: dto.defaultPriority || null,
       },
     });
   }
@@ -55,6 +56,7 @@ export class CategoriesService {
         slaHours: dto.slaHours,
         isActive: dto.isActive,
         defaultAssigneeId: dto.defaultAssigneeId !== undefined ? dto.defaultAssigneeId || null : undefined,
+        defaultPriority: dto.defaultPriority !== undefined ? dto.defaultPriority || null : undefined,
       },
     });
   }

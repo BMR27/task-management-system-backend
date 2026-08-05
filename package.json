@@ -24,7 +24,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:generate": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "prisma db seed",
+    "seed:comercial-categories": "ts-node --transpile-only prisma/seed-comercial-categories.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

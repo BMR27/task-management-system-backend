@@ -1,4 +1,6 @@
-import { IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+
+const PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
 
 export class CreateCategoryDto {
   @IsString()
@@ -23,4 +25,8 @@ export class CreateCategoryDto {
   @IsOptional()
   @IsString()
   defaultAssigneeId?: string | null;
+
+  @IsOptional()
+  @IsIn(PRIORITIES)
+  defaultPriority?: (typeof PRIORITIES)[number] | null;
 }
