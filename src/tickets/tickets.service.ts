@@ -122,8 +122,26 @@ export class TicketsService {
     user: AuthUser,
     ticket: { id: string; createdById: string; assignedToId: string | null; groupId: string; status: TicketStatus },
   ) {
-    if ((user.role === 'agent' || user.role === 'supervisor') && ticket.status === 'archived') {
+    if (ticket.status === 'archived' && user.role === 'supervisor') {
       throw new ForbiddenException('No tienes acceso a este ticket');
+    }
+    if (ticket.status === 'archived' && user.role === 'agent') {
+      // Agents can't browse archived tickets in general, but can still open
+      // one they actually worked — matches the archived-filter exception in
+      // findAll().
+      const everAssignedArchived =
+        ticket.assignedToId === user.id ||
+        (await this.prisma.historyEntry.findFirst({
+          where: {
+            ticketId: ticket.id,
+            field: 'assignedToId',
+            OR: [{ oldValue: user.id }, { newValue: user.id }],
+          },
+        }));
+      if (!everAssignedArchived) {
+        throw new ForbiddenException('No tienes acceso a este ticket');
+      }
+      return;
     }
     if (user.role === 'user' && ticket.createdById !== user.id) {
       throw new ForbiddenException('No tienes acceso a este ticket');
@@ -297,33 +315,53 @@ export class TicketsService {
     const pageSize = query.pageSize && query.pageSize > 0 ? Math.min(query.pageSize, 500) : 20;
 
     const where: Prisma.TicketWhereInput = {};
+    const everAssignedToMe: Prisma.TicketWhereInput[] = [
+      { assignedToId: user.id },
+      {
+        history: {
+          some: {
+            field: 'assignedToId',
+            OR: [{ oldValue: user.id }, { newValue: user.id }],
+          },
+        },
+      },
+    ];
+
+    // Archived tickets are hidden from agents/supervisors by default — only
+    // admins see them unconditionally. The one exception: an agent who
+    // explicitly filters by "archivado" can see archived tickets they were
+    // ever assigned to (even outside their current group), since those are
+    // tickets they actually worked. Any other statuses in that same filter
+    // still follow the normal group-based visibility.
+    const requestedStatuses = query.status as TicketStatus[] | undefined;
+    const agentWantsArchived = user.role === 'agent' && requestedStatuses?.includes('archived');
 
     if (user.role === 'user') {
       where.createdById = user.id;
+    } else if (agentWantsArchived) {
+      const otherStatuses = requestedStatuses!.filter((s) => s !== 'archived');
+      const branches: Prisma.TicketWhereInput[] = [{ status: 'archived', OR: everAssignedToMe }];
+      if (otherStatuses.length) {
+        const groupScope: Prisma.TicketWhereInput = user.groupId
+          ? { groupId: user.groupId }
+          : { OR: everAssignedToMe };
+        branches.push({ status: { in: otherStatuses }, ...groupScope });
+      }
+      where.OR = branches;
     } else if (user.role === 'agent') {
       if (user.groupId) {
         where.groupId = user.groupId;
       } else {
-        where.OR = [
-          { assignedToId: user.id },
-          {
-            history: {
-              some: {
-                field: 'assignedToId',
-                OR: [{ oldValue: user.id }, { newValue: user.id }],
-              },
-            },
-          },
-        ];
+        where.OR = everAssignedToMe;
       }
     } else if (query.assignedToId?.length) {
       where.assignedToId = { in: query.assignedToId };
     }
 
-    // Archived tickets (closed 3+ days) are hidden from agents/supervisors
-    // regardless of any status filter they try to pass — only admins can see them.
-    if (user.role === 'agent' || user.role === 'supervisor') {
-      const requested = (query.status as TicketStatus[] | undefined)?.filter((s) => s !== 'archived');
+    if (agentWantsArchived) {
+      // Status is already encoded per-branch in where.OR above.
+    } else if (user.role === 'agent' || user.role === 'supervisor') {
+      const requested = requestedStatuses?.filter((s) => s !== 'archived');
       where.status = requested?.length ? { in: requested } : { not: 'archived' };
     } else if (query.status?.length) {
       where.status = { in: query.status as TicketStatus[] };
