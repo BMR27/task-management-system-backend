@@ -14,6 +14,7 @@ const SAFE_SELECT = {
   groupId: true,
   avatar: true,
   isActive: true,
+  canManageDocuments: true,
   createdAt: true,
   lastLogin: true,
 };
@@ -77,6 +78,7 @@ export class UsersService {
         groupId: dto.groupId === undefined ? undefined : dto.groupId || null,
         isActive: dto.isActive,
         avatar: dto.avatar,
+        canManageDocuments: dto.canManageDocuments,
       },
       select: SAFE_SELECT,
     });

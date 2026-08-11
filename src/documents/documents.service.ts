@@ -37,10 +37,15 @@ export class DocumentsService {
     });
   }
 
-  /** Admin can manage documents for any group; a supervisor only for their own. */
+  /**
+   * Admin can manage documents for any group; a supervisor only for their
+   * own; an individual agent only if explicitly granted via
+   * `canManageDocuments` (still scoped to their own group).
+   */
   private assertManageScope(user: AuthUser, targetGroupId: string) {
     if (user.role === 'admin') return;
     if (user.role === 'supervisor' && user.groupId === targetGroupId) return;
+    if (user.role === 'agent' && user.canManageDocuments && user.groupId === targetGroupId) return;
     throw new ForbiddenException('No tienes permiso para gestionar documentos de este grupo');
   }
 

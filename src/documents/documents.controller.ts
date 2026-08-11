@@ -14,8 +14,6 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permissions } from '../common/decorators/permissions.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
 import { attachmentsMulterOptions } from '../attachments/attachments.multer';
@@ -23,7 +21,12 @@ import { DocumentsService } from './documents.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+// Write access isn't a plain per-role permission: admin can manage any
+// group, a supervisor only their own group, and an individual agent can be
+// granted the same group-scoped access via `canManageDocuments`. That mix
+// can't be expressed by PermissionsGuard, so DocumentsService.assertManageScope
+// does the actual authorization for create/update/remove below.
+@UseGuards(JwtAuthGuard)
 @Controller('documents')
 export class DocumentsController {
   constructor(private documentsService: DocumentsService) {}
@@ -33,7 +36,6 @@ export class DocumentsController {
     return this.documentsService.findAll(user, groupId);
   }
 
-  @Permissions('manage_documents')
   @Post()
   @UseInterceptors(FileInterceptor('file', attachmentsMulterOptions))
   create(
@@ -47,7 +49,6 @@ export class DocumentsController {
     return this.documentsService.create(dto, file, user);
   }
 
-  @Permissions('manage_documents')
   @Patch(':id')
   @UseInterceptors(FileInterceptor('file', attachmentsMulterOptions))
   update(
@@ -59,7 +60,6 @@ export class DocumentsController {
     return this.documentsService.update(id, dto, file, user);
   }
 
-  @Permissions('manage_documents')
   @Delete(':id')
   remove(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.documentsService.remove(id, user);

@@ -127,6 +127,7 @@ export class EmailProcessor extends WorkerHost {
           email: systemUser.email,
           role: 'admin',
           groupId: null,
+          canManageDocuments: false,
         });
       }
 

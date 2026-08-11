@@ -5,6 +5,7 @@ export interface AuthUser {
   email: string;
   role: 'admin' | 'supervisor' | 'agent' | 'user';
   groupId: string | null;
+  canManageDocuments: boolean;
 }
 
 export const CurrentUser = createParamDecorator(

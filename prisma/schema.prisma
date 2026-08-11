@@ -100,6 +100,10 @@ model User {
   createdAt        DateTime  @default(now())
   lastLogin        DateTime?
   refreshTokenHash String?
+  // Per-user override: lets an individual agent manage (upload/edit/delete)
+  // documents for their own group, same as a supervisor would, without
+  // granting them any other supervisor permission.
+  canManageDocuments Boolean @default(false)
 
   createdTickets  Ticket[]       @relation("CreatedBy")
   assignedTickets Ticket[]       @relation("AssignedTo")

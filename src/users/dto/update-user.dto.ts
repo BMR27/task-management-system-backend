@@ -26,4 +26,8 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   avatar?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  canManageDocuments?: boolean;
 }
