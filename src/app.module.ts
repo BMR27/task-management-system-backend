@@ -19,6 +19,7 @@ import { SettingsModule } from './settings/settings.module';
 import { HealthModule } from './health/health.module';
 import { InboundEmailModule } from './inbound-email/inbound-email.module';
 import { EmailProcessingModule } from './email-processing/email-processing.module';
+import { DocumentsModule } from './documents/documents.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { EmailProcessingModule } from './email-processing/email-processing.modul
     HealthModule,
     InboundEmailModule,
     EmailProcessingModule,
+    DocumentsModule,
   ],
 })
 export class AppModule {}

@@ -108,6 +108,7 @@ model User {
   notifications   Notification[]
   leadsGroups     Group[]        @relation("GroupLeader")
   defaultForCategories Category[] @relation("CategoryDefaultAssignee")
+  uploadedDocuments Document[]   @relation("DocumentUploadedBy")
 
   @@index([groupId])
   @@index([role])
@@ -126,6 +127,7 @@ model Group {
   members    User[]     @relation("GroupMembers")
   categories Category[]
   tickets    Ticket[]
+  documents  Document[]
 }
 
 model Category {
@@ -242,6 +244,26 @@ model Attachment {
   ticket     Ticket?  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   commentId  String?
   comment    Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+}
+
+/// A template/format file a supervisor publishes for their group's agents
+/// to download (e.g. "Formato de cotización"). Scoped by group — agents
+/// only ever see their own group's documents.
+model Document {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  url          String
+  size         Int
+  type         String
+  groupId      String
+  group        Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  uploadedById String?
+  uploadedBy   User?    @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([groupId])
 }
 
 model Notification {
