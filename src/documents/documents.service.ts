@@ -18,10 +18,12 @@ export class DocumentsService {
 
   constructor(private prisma: PrismaService) {}
 
-  /** Agents/supervisors only ever see their own group's documents; admins see everything (optionally filtered). */
+  /**
+   * Agents/supervisors/users only ever see their own group's documents
+   * (view-only for 'user' — write routes are still gated by
+   * assertManageScope); admins see everything (optionally filtered).
+   */
   findAll(user: AuthUser, groupId?: string) {
-    if (user.role === 'user') return [];
-
     const where: Prisma.DocumentWhereInput = {};
     if (user.role === 'admin') {
       if (groupId) where.groupId = groupId;
