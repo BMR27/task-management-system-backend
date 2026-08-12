@@ -78,12 +78,36 @@ export class AuthService {
     avatar: string | null;
     isActive: boolean;
     mustChangePassword: boolean;
+    canManageDocuments: boolean;
     createdAt: Date;
     lastLogin: Date | null;
   }) {
-    const { id, email, name, role, groupId, avatar, isActive, mustChangePassword, createdAt, lastLogin } =
-      user;
-    return { id, email, name, role, groupId, avatar, isActive, mustChangePassword, createdAt, lastLogin };
+    const {
+      id,
+      email,
+      name,
+      role,
+      groupId,
+      avatar,
+      isActive,
+      mustChangePassword,
+      canManageDocuments,
+      createdAt,
+      lastLogin,
+    } = user;
+    return {
+      id,
+      email,
+      name,
+      role,
+      groupId,
+      avatar,
+      isActive,
+      mustChangePassword,
+      canManageDocuments,
+      createdAt,
+      lastLogin,
+    };
   }
 
   async changePassword(userId: string, newPassword: string) {
