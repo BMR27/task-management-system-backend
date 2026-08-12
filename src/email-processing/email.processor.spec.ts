@@ -53,6 +53,7 @@ describe('EmailProcessor', () => {
       isRateLimited: jest.fn().mockResolvedValue(false),
       ...overrides.senderGuard,
     };
+    const config = { get: jest.fn().mockReturnValue(undefined), ...overrides.config };
 
     const processor = new EmailProcessor(
       prisma as any,
@@ -64,6 +65,7 @@ describe('EmailProcessor', () => {
       threadMatcher as any,
       classifier as any,
       senderGuard as any,
+      config as any,
     );
     return { processor, prisma, tickets, comments, mail, attachments, fetcher, threadMatcher, classifier, senderGuard };
   }

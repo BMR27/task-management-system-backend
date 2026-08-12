@@ -1,5 +1,6 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Job } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { TicketsService } from '../tickets/tickets.service';
@@ -24,6 +25,13 @@ export interface EmailInboundJobData {
 @Processor(EMAIL_INBOUND_QUEUE)
 export class EmailProcessor extends WorkerHost {
   private readonly logger = new Logger(EmailProcessor.name);
+  /**
+   * Addresses the system itself sends notifications from. If inbound
+   * routing on the sending domain ever loops one of those back to us (e.g.
+   * a catch-all route capturing our own outbound mail), it must never be
+   * treated as a genuine reply — see isAutomatedEmail().
+   */
+  private readonly selfSenderEmails: string[];
 
   constructor(
     private prisma: PrismaService,
@@ -35,8 +43,12 @@ export class EmailProcessor extends WorkerHost {
     private threadMatcher: ThreadMatcherService,
     private classifier: ClassificationRulesService,
     private senderGuard: SenderGuardService,
+    private config: ConfigService,
   ) {
     super();
+    this.selfSenderEmails = [this.config.get<string>('SMTP_FROM'), 'notificaciones@nextoshelpdesk.com.mx'].filter(
+      (v): v is string => !!v,
+    );
   }
 
   async process(job: Job<EmailInboundJobData>): Promise<void> {
@@ -84,7 +96,12 @@ export class EmailProcessor extends WorkerHost {
       return;
     }
 
-    if (isAutomatedEmail({ fromEmail: email.fromEmail, subject: email.subject, headers: email.headers })) {
+    if (
+      isAutomatedEmail(
+        { fromEmail: email.fromEmail, subject: email.subject, headers: email.headers },
+        this.selfSenderEmails,
+      )
+    ) {
       await this.markSkipped(emailMessageId, 'Correo automático/rebote/fuera de oficina detectado');
       return;
     }

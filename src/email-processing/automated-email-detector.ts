@@ -24,8 +24,16 @@ const AUTOMATED_SUBJECT_PATTERNS = [
  * should never spawn (or reopen) a ticket. Header checks come first since
  * they're the most reliable signal; subject/sender patterns are a fallback
  * for providers that don't forward standard headers.
+ *
+ * `selfSenderEmails` catches mail loops: if the domain's inbound routing
+ * ever captures the system's own outbound notifications (e.g. a catch-all
+ * route on the sending domain), those would otherwise look like a genuine
+ * reply from the requester and keep reopening the ticket forever.
  */
-export function isAutomatedEmail(email: InboundEmailForDetection): boolean {
+export function isAutomatedEmail(
+  email: InboundEmailForDetection,
+  selfSenderEmails: string[] = [],
+): boolean {
   const headers = normalizeHeaders(email.headers);
 
   const autoSubmitted = headers['auto-submitted'];
@@ -38,8 +46,12 @@ export function isAutomatedEmail(email: InboundEmailForDetection): boolean {
     return true;
   }
 
-  const fromEmail = (email.fromEmail || '').toLowerCase();
+  const fromEmail = extractEmailAddress(email.fromEmail || '');
   if (BOUNCE_SENDER_PATTERNS.some((pattern) => pattern.test(fromEmail))) {
+    return true;
+  }
+
+  if (fromEmail && selfSenderEmails.some((addr) => extractEmailAddress(addr) === fromEmail)) {
     return true;
   }
 
@@ -57,4 +69,10 @@ function normalizeHeaders(headers: Record<string, string>): Record<string, strin
     normalized[key.toLowerCase()] = value;
   }
   return normalized;
+}
+
+/** Pulls the bare address out of "Name <email@domain>" (or passes plain addresses through). */
+function extractEmailAddress(raw: string): string {
+  const match = raw.match(/<([^>]+)>/);
+  return (match ? match[1] : raw).trim().toLowerCase();
 }
