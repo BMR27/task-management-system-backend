@@ -19,17 +19,16 @@ export class DocumentsService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Agents/supervisors/users see documents for their own group plus any
-   * extra groups explicitly granted via `documentViewGroupIds` (view-only —
-   * write routes are still gated by assertManageScope regardless of this
-   * list); admins see everything (optionally filtered).
+   * Own group is always viewable; any group with an explicit
+   * documentPermissions row (view OR manage) is viewable too. Admins see
+   * everything (optionally filtered).
    */
   findAll(user: AuthUser, groupId?: string) {
     const where: Prisma.DocumentWhereInput = {};
     if (user.role === 'admin') {
       if (groupId) where.groupId = groupId;
     } else {
-      const viewableGroupIds = [user.groupId, ...user.documentViewGroupIds].filter(
+      const viewableGroupIds = [user.groupId, ...user.documentPermissions.map((p) => p.groupId)].filter(
         (id): id is string => !!id,
       );
       if (!viewableGroupIds.length) return [];
@@ -44,14 +43,14 @@ export class DocumentsService {
   }
 
   /**
-   * Admin can manage documents for any group; a supervisor only for their
-   * own; an individual agent only if explicitly granted via
-   * `canManageDocuments` (still scoped to their own group).
+   * Admin can manage documents for any group; a supervisor for their own
+   * group by default; anyone (any role) with an explicit 'manage' row for
+   * that group in documentPermissions.
    */
   private assertManageScope(user: AuthUser, targetGroupId: string) {
     if (user.role === 'admin') return;
     if (user.role === 'supervisor' && user.groupId === targetGroupId) return;
-    if (user.role === 'agent' && user.canManageDocuments && user.groupId === targetGroupId) return;
+    if (user.documentPermissions.some((p) => p.groupId === targetGroupId && p.level === 'manage')) return;
     throw new ForbiddenException('No tienes permiso para gestionar documentos de este grupo');
   }
 

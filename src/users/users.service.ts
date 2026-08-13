@@ -14,8 +14,7 @@ const SAFE_SELECT = {
   groupId: true,
   avatar: true,
   isActive: true,
-  canManageDocuments: true,
-  documentViewGroups: { select: { id: true, name: true, color: true } },
+  documentPermissions: { select: { groupId: true, level: true } },
   createdAt: true,
   lastLogin: true,
 };
@@ -79,11 +78,13 @@ export class UsersService {
         groupId: dto.groupId === undefined ? undefined : dto.groupId || null,
         isActive: dto.isActive,
         avatar: dto.avatar,
-        canManageDocuments: dto.canManageDocuments,
-        documentViewGroups:
-          dto.documentViewGroupIds === undefined
+        documentPermissions:
+          dto.documentPermissions === undefined
             ? undefined
-            : { set: dto.documentViewGroupIds.map((id) => ({ id })) },
+            : {
+                deleteMany: {},
+                create: dto.documentPermissions.map((p) => ({ groupId: p.groupId, level: p.level })),
+              },
       },
       select: SAFE_SELECT,
     });

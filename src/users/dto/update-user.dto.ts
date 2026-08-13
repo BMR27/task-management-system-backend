@@ -1,5 +1,15 @@
-import { IsArray, IsBoolean, IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
-import { UserRole } from '@prisma/client';
+import { IsArray, IsBoolean, IsEmail, IsEnum, IsOptional, IsString, MinLength, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { DocumentPermissionLevel, UserRole } from '@prisma/client';
+
+class DocumentPermissionInputDto {
+  @IsString()
+  @MinLength(1)
+  groupId!: string;
+
+  @IsEnum(DocumentPermissionLevel)
+  level!: DocumentPermissionLevel;
+}
 
 export class UpdateUserDto {
   @IsOptional()
@@ -28,11 +38,8 @@ export class UpdateUserDto {
   avatar?: string;
 
   @IsOptional()
-  @IsBoolean()
-  canManageDocuments?: boolean;
-
-  @IsOptional()
   @IsArray()
-  @IsString({ each: true })
-  documentViewGroupIds?: string[];
+  @ValidateNested({ each: true })
+  @Type(() => DocumentPermissionInputDto)
+  documentPermissions?: DocumentPermissionInputDto[];
 }

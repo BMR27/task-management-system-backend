@@ -5,9 +5,8 @@ export interface AuthUser {
   email: string;
   role: 'admin' | 'supervisor' | 'agent' | 'user';
   groupId: string | null;
-  canManageDocuments: boolean;
-  /** Extra groups (beyond `groupId`) this user can view documents for. */
-  documentViewGroupIds: string[];
+  /** Explicit per-group Documents-module grants beyond the role defaults. */
+  documentPermissions: { groupId: string; level: 'view' | 'manage' }[];
 }
 
 export const CurrentUser = createParamDecorator(

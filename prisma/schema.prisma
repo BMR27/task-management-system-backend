@@ -100,10 +100,6 @@ model User {
   createdAt        DateTime  @default(now())
   lastLogin        DateTime?
   refreshTokenHash String?
-  // Per-user override: lets an individual agent manage (upload/edit/delete)
-  // documents for their own group, same as a supervisor would, without
-  // granting them any other supervisor permission.
-  canManageDocuments Boolean @default(false)
 
   createdTickets  Ticket[]       @relation("CreatedBy")
   assignedTickets Ticket[]       @relation("AssignedTo")
@@ -113,10 +109,11 @@ model User {
   leadsGroups     Group[]        @relation("GroupLeader")
   defaultForCategories Category[] @relation("CategoryDefaultAssignee")
   uploadedDocuments Document[]   @relation("DocumentUploadedBy")
-  // Extra groups (beyond their own `groupId`) this user can VIEW documents
-  // for in the Documents module — e.g. an Operaciones agent who also needs
-  // to see Delivery's formats. Never grants manage rights on those groups.
-  documentViewGroups Group[]     @relation("DocumentViewGroups")
+  // Per-user, per-group Documents-module permission (view or manage) — lets
+  // an admin/supervisor pick exactly which action each user can take in
+  // each group, beyond the role defaults (admin: everything; supervisor:
+  // manage own group).
+  documentPermissions DocumentGroupPermission[]
 
   @@index([groupId])
   @@index([role])
@@ -136,7 +133,25 @@ model Group {
   categories Category[]
   tickets    Ticket[]
   documents  Document[]
-  documentViewers User[] @relation("DocumentViewGroups")
+  documentPermissions DocumentGroupPermission[]
+}
+
+enum DocumentPermissionLevel {
+  view
+  manage
+}
+
+/// One row per (user, group) explicit Documents-module grant — see User.documentPermissions.
+model DocumentGroupPermission {
+  id      String                  @id @default(cuid())
+  userId  String
+  user    User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupId String
+  group   Group                   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  level   DocumentPermissionLevel
+
+  @@unique([userId, groupId])
+  @@index([groupId])
 }
 
 model Category {
