@@ -113,6 +113,10 @@ model User {
   leadsGroups     Group[]        @relation("GroupLeader")
   defaultForCategories Category[] @relation("CategoryDefaultAssignee")
   uploadedDocuments Document[]   @relation("DocumentUploadedBy")
+  // Extra groups (beyond their own `groupId`) this user can VIEW documents
+  // for in the Documents module — e.g. an Operaciones agent who also needs
+  // to see Delivery's formats. Never grants manage rights on those groups.
+  documentViewGroups Group[]     @relation("DocumentViewGroups")
 
   @@index([groupId])
   @@index([role])
@@ -132,6 +136,7 @@ model Group {
   categories Category[]
   tickets    Ticket[]
   documents  Document[]
+  documentViewers User[] @relation("DocumentViewGroups")
 }
 
 model Category {

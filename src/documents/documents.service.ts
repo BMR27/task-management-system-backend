@@ -19,17 +19,21 @@ export class DocumentsService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Agents/supervisors/users only ever see their own group's documents
-   * (view-only for 'user' — write routes are still gated by
-   * assertManageScope); admins see everything (optionally filtered).
+   * Agents/supervisors/users see documents for their own group plus any
+   * extra groups explicitly granted via `documentViewGroupIds` (view-only —
+   * write routes are still gated by assertManageScope regardless of this
+   * list); admins see everything (optionally filtered).
    */
   findAll(user: AuthUser, groupId?: string) {
     const where: Prisma.DocumentWhereInput = {};
     if (user.role === 'admin') {
       if (groupId) where.groupId = groupId;
     } else {
-      if (!user.groupId) return [];
-      where.groupId = user.groupId;
+      const viewableGroupIds = [user.groupId, ...user.documentViewGroupIds].filter(
+        (id): id is string => !!id,
+      );
+      if (!viewableGroupIds.length) return [];
+      where.groupId = { in: viewableGroupIds };
     }
 
     return this.prisma.document.findMany({

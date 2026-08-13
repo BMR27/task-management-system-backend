@@ -145,6 +145,7 @@ export class EmailProcessor extends WorkerHost {
           role: 'admin',
           groupId: null,
           canManageDocuments: false,
+          documentViewGroupIds: [],
         });
       }
 

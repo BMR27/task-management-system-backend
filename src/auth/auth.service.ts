@@ -13,7 +13,10 @@ export class AuthService {
   ) {}
 
   async validateCredentials(email: string, password: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      include: { documentViewGroups: { select: { id: true, name: true, color: true } } },
+    });
     if (!user || !user.isActive) {
       throw new UnauthorizedException('Credenciales inválidas');
     }
@@ -79,6 +82,7 @@ export class AuthService {
     isActive: boolean;
     mustChangePassword: boolean;
     canManageDocuments: boolean;
+    documentViewGroups: { id: string; name: string; color: string }[];
     createdAt: Date;
     lastLogin: Date | null;
   }) {
@@ -92,6 +96,7 @@ export class AuthService {
       isActive,
       mustChangePassword,
       canManageDocuments,
+      documentViewGroups,
       createdAt,
       lastLogin,
     } = user;
@@ -105,6 +110,7 @@ export class AuthService {
       isActive,
       mustChangePassword,
       canManageDocuments,
+      documentViewGroups,
       createdAt,
       lastLogin,
     };
@@ -115,6 +121,7 @@ export class AuthService {
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: { passwordHash, mustChangePassword: false },
+      include: { documentViewGroups: { select: { id: true, name: true, color: true } } },
     });
     return this.sanitizeUser(user);
   }

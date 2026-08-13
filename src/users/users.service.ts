@@ -15,6 +15,7 @@ const SAFE_SELECT = {
   avatar: true,
   isActive: true,
   canManageDocuments: true,
+  documentViewGroups: { select: { id: true, name: true, color: true } },
   createdAt: true,
   lastLogin: true,
 };
@@ -79,6 +80,10 @@ export class UsersService {
         isActive: dto.isActive,
         avatar: dto.avatar,
         canManageDocuments: dto.canManageDocuments,
+        documentViewGroups:
+          dto.documentViewGroupIds === undefined
+            ? undefined
+            : { set: dto.documentViewGroupIds.map((id) => ({ id })) },
       },
       select: SAFE_SELECT,
     });

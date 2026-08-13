@@ -6,6 +6,8 @@ export interface AuthUser {
   role: 'admin' | 'supervisor' | 'agent' | 'user';
   groupId: string | null;
   canManageDocuments: boolean;
+  /** Extra groups (beyond `groupId`) this user can view documents for. */
+  documentViewGroupIds: string[];
 }
 
 export const CurrentUser = createParamDecorator(

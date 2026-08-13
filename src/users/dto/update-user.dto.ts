@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 import { UserRole } from '@prisma/client';
 
 export class UpdateUserDto {
@@ -30,4 +30,9 @@ export class UpdateUserDto {
   @IsOptional()
   @IsBoolean()
   canManageDocuments?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  documentViewGroupIds?: string[];
 }
