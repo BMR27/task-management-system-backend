@@ -11,6 +11,12 @@ class DocumentPermissionInputDto {
   level!: DocumentPermissionLevel;
 }
 
+class TicketViewPermissionInputDto {
+  @IsString()
+  @MinLength(1)
+  groupId!: string;
+}
+
 export class UpdateUserDto {
   @IsOptional()
   @IsString()
@@ -42,4 +48,10 @@ export class UpdateUserDto {
   @ValidateNested({ each: true })
   @Type(() => DocumentPermissionInputDto)
   documentPermissions?: DocumentPermissionInputDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TicketViewPermissionInputDto)
+  ticketViewPermissions?: TicketViewPermissionInputDto[];
 }

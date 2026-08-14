@@ -7,6 +7,8 @@ export interface AuthUser {
   groupId: string | null;
   /** Explicit per-group Documents-module grants beyond the role defaults. */
   documentPermissions: { groupId: string; level: 'view' | 'manage' }[];
+  /** Explicit extra-group Tickets-module view grants beyond own group. */
+  ticketViewPermissions: { groupId: string }[];
 }
 
 export const CurrentUser = createParamDecorator(

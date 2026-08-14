@@ -15,7 +15,10 @@ export class AuthService {
   async validateCredentials(email: string, password: string) {
     const user = await this.prisma.user.findUnique({
       where: { email },
-      include: { documentPermissions: { select: { groupId: true, level: true } } },
+      include: {
+        documentPermissions: { select: { groupId: true, level: true } },
+        ticketViewPermissions: { select: { groupId: true } },
+      },
     });
     if (!user || !user.isActive) {
       throw new UnauthorizedException('Credenciales inválidas');
@@ -82,6 +85,7 @@ export class AuthService {
     isActive: boolean;
     mustChangePassword: boolean;
     documentPermissions: { groupId: string; level: string }[];
+    ticketViewPermissions: { groupId: string }[];
     createdAt: Date;
     lastLogin: Date | null;
   }) {
@@ -95,6 +99,7 @@ export class AuthService {
       isActive,
       mustChangePassword,
       documentPermissions,
+      ticketViewPermissions,
       createdAt,
       lastLogin,
     } = user;
@@ -108,6 +113,7 @@ export class AuthService {
       isActive,
       mustChangePassword,
       documentPermissions,
+      ticketViewPermissions,
       createdAt,
       lastLogin,
     };
@@ -118,7 +124,10 @@ export class AuthService {
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: { passwordHash, mustChangePassword: false },
-      include: { documentPermissions: { select: { groupId: true, level: true } } },
+      include: {
+        documentPermissions: { select: { groupId: true, level: true } },
+        ticketViewPermissions: { select: { groupId: true } },
+      },
     });
     return this.sanitizeUser(user);
   }

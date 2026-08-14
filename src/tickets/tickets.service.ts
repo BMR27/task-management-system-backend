@@ -146,7 +146,12 @@ export class TicketsService {
     if (user.role === 'user' && ticket.createdById !== user.id) {
       throw new ForbiddenException('No tienes acceso a este ticket');
     }
-    if (user.role === 'agent' && ticket.groupId !== user.groupId && ticket.assignedToId !== user.id) {
+    if (
+      user.role === 'agent' &&
+      ticket.groupId !== user.groupId &&
+      ticket.assignedToId !== user.id &&
+      !user.ticketViewPermissions.some((p) => p.groupId === ticket.groupId)
+    ) {
       const everAssigned = await this.prisma.historyEntry.findFirst({
         where: {
           ticketId: ticket.id,
@@ -335,6 +340,11 @@ export class TicketsService {
     // still follow the normal group-based visibility.
     const requestedStatuses = query.status as TicketStatus[] | undefined;
     const agentWantsArchived = user.role === 'agent' && requestedStatuses?.includes('archived');
+    // Own group plus any group an admin/supervisor has explicitly granted
+    // this agent view access to (e.g. Delivery agents viewing Operations).
+    const viewableGroupIds = [user.groupId, ...user.ticketViewPermissions.map((p) => p.groupId)].filter(
+      (id): id is string => !!id,
+    );
 
     if (user.role === 'user') {
       where.createdById = user.id;
@@ -342,15 +352,15 @@ export class TicketsService {
       const otherStatuses = requestedStatuses!.filter((s) => s !== 'archived');
       const branches: Prisma.TicketWhereInput[] = [{ status: 'archived', OR: everAssignedToMe }];
       if (otherStatuses.length) {
-        const groupScope: Prisma.TicketWhereInput = user.groupId
-          ? { groupId: user.groupId }
+        const groupScope: Prisma.TicketWhereInput = viewableGroupIds.length
+          ? { groupId: { in: viewableGroupIds } }
           : { OR: everAssignedToMe };
         branches.push({ status: { in: otherStatuses }, ...groupScope });
       }
       where.OR = branches;
     } else if (user.role === 'agent') {
-      if (user.groupId) {
-        where.groupId = user.groupId;
+      if (viewableGroupIds.length) {
+        where.groupId = { in: viewableGroupIds };
       } else {
         where.OR = everAssignedToMe;
       }
@@ -367,9 +377,14 @@ export class TicketsService {
       where.status = { in: query.status as TicketStatus[] };
     }
     if (query.priority?.length) where.priority = { in: query.priority as any };
-    // An agent's groupId scope above is a hard security boundary — never let
-    // the group filter query param override it with a different group.
-    if (query.groupId?.length && !(user.role === 'agent' && user.groupId)) {
+    if (query.groupId?.length && user.role === 'agent') {
+      // An agent's viewable-groups scope above is a hard security boundary —
+      // the group filter query param may only narrow within it, never widen
+      // it to a group the agent has no access to.
+      if (viewableGroupIds.length) {
+        where.groupId = { in: viewableGroupIds.filter((id) => query.groupId!.includes(id)) };
+      }
+    } else if (query.groupId?.length) {
       where.groupId = { in: query.groupId };
     }
     if (query.categoryId?.length) where.categoryId = { in: query.categoryId };

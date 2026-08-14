@@ -15,6 +15,7 @@ const SAFE_SELECT = {
   avatar: true,
   isActive: true,
   documentPermissions: { select: { groupId: true, level: true } },
+  ticketViewPermissions: { select: { groupId: true } },
   createdAt: true,
   lastLogin: true,
 };
@@ -84,6 +85,13 @@ export class UsersService {
             : {
                 deleteMany: {},
                 create: dto.documentPermissions.map((p) => ({ groupId: p.groupId, level: p.level })),
+              },
+        ticketViewPermissions:
+          dto.ticketViewPermissions === undefined
+            ? undefined
+            : {
+                deleteMany: {},
+                create: dto.ticketViewPermissions.map((p) => ({ groupId: p.groupId })),
               },
       },
       select: SAFE_SELECT,

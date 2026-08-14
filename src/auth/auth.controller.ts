@@ -99,7 +99,10 @@ export class AuthController {
   async me(@CurrentUser() user: AuthUser) {
     const dbUser = await this.prisma.user.findUnique({
       where: { id: user.id },
-      include: { documentPermissions: { select: { groupId: true, level: true } } },
+      include: {
+        documentPermissions: { select: { groupId: true, level: true } },
+        ticketViewPermissions: { select: { groupId: true } },
+      },
     });
     if (!dbUser) {
       throw new UnauthorizedException();
