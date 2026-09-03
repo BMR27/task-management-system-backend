@@ -152,14 +152,20 @@ export class TicketsService {
       ticket.assignedToId !== user.id &&
       !user.ticketViewPermissions.some((p) => p.groupId === ticket.groupId)
     ) {
-      const everAssigned = await this.prisma.historyEntry.findFirst({
+      // Also lets the agent through if they're the one who created the
+      // ticket (including "on behalf of" another user) — otherwise a ticket
+      // created for a different group/assignee is instantly inaccessible to
+      // its own creator, breaking the immediate follow-up attachment upload.
+      const everInvolved = await this.prisma.historyEntry.findFirst({
         where: {
           ticketId: ticket.id,
-          field: 'assignedToId',
-          OR: [{ oldValue: user.id }, { newValue: user.id }],
+          OR: [
+            { field: 'assignedToId', OR: [{ oldValue: user.id }, { newValue: user.id }] },
+            { userId: user.id, action: { in: ['created', 'created_on_behalf'] } },
+          ],
         },
       });
-      if (!everAssigned) {
+      if (!everInvolved) {
         throw new ForbiddenException('No tienes acceso a este ticket');
       }
     }
