@@ -326,11 +326,16 @@ export class TicketsService {
     if (user.role === 'user') {
       where.createdById = user.id;
     } else if (user.role === 'agent') {
-      if (viewableGroupIds.length) {
-        where.groupId = { in: viewableGroupIds };
-      } else {
-        where.OR = everAssignedToMe;
-      }
+      // Group/assignment scope, plus tickets the agent created themselves
+      // (directly or "on behalf of" someone else) even outside their group —
+      // matches the creator exception already granted in assertScope() when
+      // opening a single ticket, so an agent can always find a ticket they
+      // filed regardless of which group it landed in.
+      where.OR = [
+        ...(viewableGroupIds.length ? [{ groupId: { in: viewableGroupIds } }] : everAssignedToMe),
+        { createdById: user.id },
+        { history: { some: { userId: user.id, action: { in: ['created', 'created_on_behalf'] } } } },
+      ];
     } else if (query.assignedToId?.length) {
       where.assignedToId = { in: query.assignedToId };
     }
