@@ -32,6 +32,12 @@ export class UpdateTicketDto {
   @IsString()
   assignedToId?: string | null;
 
+  /** Full replacement of the ticket's collaborator list (people besides the primary assignee with full access). */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  collaboratorIds?: string[];
+
   @IsOptional()
   @IsArray()
   tags?: string[];

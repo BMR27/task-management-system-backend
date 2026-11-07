@@ -26,6 +26,7 @@ const TICKET_INCLUDE = {
   group: true,
   assignedTo: { select: { id: true, name: true, avatar: true, role: true } },
   createdBy: { select: { id: true, name: true, avatar: true, role: true } },
+  collaborators: { select: { id: true, name: true, avatar: true, role: true } },
   attachments: true,
 };
 
@@ -120,15 +121,27 @@ export class TicketsService {
 
   private async assertScope(
     user: AuthUser,
-    ticket: { id: string; createdById: string; assignedToId: string | null; groupId: string; status: TicketStatus },
+    ticket: {
+      id: string;
+      createdById: string;
+      assignedToId: string | null;
+      groupId: string;
+      status: TicketStatus;
+      collaboratorIds?: string[];
+    },
   ) {
-    if (user.role === 'user' && ticket.createdById !== user.id) {
+    if (ticket.status === 'archived' && user.hideArchivedTickets) {
+      throw new ForbiddenException('No tienes acceso a este ticket');
+    }
+    const isCollaborator = ticket.collaboratorIds?.includes(user.id) ?? false;
+    if (user.role === 'user' && ticket.createdById !== user.id && !isCollaborator) {
       throw new ForbiddenException('No tienes acceso a este ticket');
     }
     if (
       user.role === 'agent' &&
       ticket.groupId !== user.groupId &&
       ticket.assignedToId !== user.id &&
+      !isCollaborator &&
       !user.ticketViewPermissions.some((p) => p.groupId === ticket.groupId)
     ) {
       // Also lets the agent through if they're the one who created the
@@ -323,8 +336,13 @@ export class TicketsService {
       (id): id is string => !!id,
     );
 
+    // Being added as a collaborator grants the same visibility as being the
+    // creator/assignee, regardless of role — a ticket with 2-3 people
+    // working it together should show up for all of them.
+    const collaboratingOn: Prisma.TicketWhereInput = { collaborators: { some: { id: user.id } } };
+
     if (user.role === 'user') {
-      where.createdById = user.id;
+      where.OR = [{ createdById: user.id }, collaboratingOn];
     } else if (user.role === 'agent') {
       // Group/assignment scope, plus tickets the agent created themselves
       // (directly or "on behalf of" someone else) even outside their group —
@@ -335,16 +353,23 @@ export class TicketsService {
         ...(viewableGroupIds.length ? [{ groupId: { in: viewableGroupIds } }] : everAssignedToMe),
         { createdById: user.id },
         { history: { some: { userId: user.id, action: { in: ['created', 'created_on_behalf'] } } } },
+        collaboratingOn,
       ];
     } else if (query.assignedToId?.length) {
       where.assignedToId = { in: query.assignedToId };
     }
 
-    // Archived tickets are searchable/visible to every role, same as any
-    // other status — they just still follow the role's normal group/
-    // assignment scope above.
+    // Archived tickets are searchable/visible to every role by default, same
+    // as any other status — except for a user an admin has explicitly opted
+    // out of seeing them (hideArchivedTickets), who never gets archived
+    // tickets back regardless of what they ask for.
     if (query.status?.length) {
-      where.status = { in: query.status as TicketStatus[] };
+      const requested = user.hideArchivedTickets
+        ? (query.status as TicketStatus[]).filter((s) => s !== 'archived')
+        : (query.status as TicketStatus[]);
+      where.status = { in: requested };
+    } else if (user.hideArchivedTickets) {
+      where.status = { not: 'archived' };
     }
     if (query.priority?.length) where.priority = { in: query.priority as any };
     if (query.groupId?.length && user.role === 'agent') {
@@ -398,16 +423,19 @@ export class TicketsService {
     if (!ticket) {
       throw new NotFoundException('Ticket no encontrado');
     }
-    await this.assertScope(user, ticket);
+    await this.assertScope(user, { ...ticket, collaboratorIds: ticket.collaborators.map((c) => c.id) });
     return this.withSla(ticket);
   }
 
   async update(id: string, dto: UpdateTicketDto, user: AuthUser) {
-    const existing = await this.prisma.ticket.findUnique({ where: { id } });
+    const existing = await this.prisma.ticket.findUnique({
+      where: { id },
+      include: { collaborators: { select: { id: true } } },
+    });
     if (!existing) {
       throw new NotFoundException('Ticket no encontrado');
     }
-    await this.assertScope(user, existing);
+    await this.assertScope(user, { ...existing, collaboratorIds: existing.collaborators.map((c) => c.id) });
 
     // Reclassifying a ticket into a different category re-derives its due
     // date from the new category's SLA (relative to when it was created),
@@ -438,6 +466,14 @@ export class TicketsService {
     if (effectiveAssignedToId !== undefined) {
       data.assignedTo = effectiveAssignedToId ? { connect: { id: effectiveAssignedToId } } : { disconnect: true };
       data.assignedAt = effectiveAssignedToId ? new Date() : null;
+    }
+    const existingCollaboratorIds = existing.collaborators.map((c) => c.id);
+    const collaboratorsChanged =
+      dto.collaboratorIds !== undefined &&
+      (dto.collaboratorIds.length !== existingCollaboratorIds.length ||
+        !dto.collaboratorIds.every((id) => existingCollaboratorIds.includes(id)));
+    if (dto.collaboratorIds !== undefined) {
+      data.collaborators = { set: dto.collaboratorIds.map((id) => ({ id })) };
     }
     let resolutionText: string | undefined;
     if (dto.status) {
@@ -487,6 +523,16 @@ export class TicketsService {
       this.events.emit(
         TICKET_STATUS_CHANGED,
         new TicketStatusChangedEvent(updated, existing.status, dto.status, user.id, resolutionText),
+      );
+    }
+    if (collaboratorsChanged) {
+      await this.history.create(
+        id,
+        user.id,
+        'collaborators_changed',
+        'collaboratorIds',
+        existingCollaboratorIds.join(', ') || null,
+        dto.collaboratorIds!.join(', ') || null,
       );
     }
     if (dto.priority && dto.priority !== existing.priority) {
@@ -630,9 +676,12 @@ export class TicketsService {
   }
 
   async getHistory(id: string, user: AuthUser) {
-    const ticket = await this.prisma.ticket.findUnique({ where: { id } });
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id },
+      include: { collaborators: { select: { id: true } } },
+    });
     if (!ticket) throw new NotFoundException('Ticket no encontrado');
-    await this.assertScope(user, ticket);
+    await this.assertScope(user, { ...ticket, collaboratorIds: ticket.collaborators.map((c) => c.id) });
     return this.history.findByTicket(id);
   }
 

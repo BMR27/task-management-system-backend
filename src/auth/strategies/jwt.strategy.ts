@@ -43,6 +43,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       groupId: user.groupId,
       documentPermissions: user.documentPermissions,
       ticketViewPermissions: user.ticketViewPermissions,
+      hideArchivedTickets: user.hideArchivedTickets,
     };
   }
 }

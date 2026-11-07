@@ -14,6 +14,7 @@ const SAFE_SELECT = {
   groupId: true,
   avatar: true,
   isActive: true,
+  hideArchivedTickets: true,
   documentPermissions: { select: { groupId: true, level: true } },
   ticketViewPermissions: { select: { groupId: true } },
   createdAt: true,
@@ -79,6 +80,7 @@ export class UsersService {
         groupId: dto.groupId === undefined ? undefined : dto.groupId || null,
         isActive: dto.isActive,
         avatar: dto.avatar,
+        hideArchivedTickets: dto.hideArchivedTickets,
         documentPermissions:
           dto.documentPermissions === undefined
             ? undefined

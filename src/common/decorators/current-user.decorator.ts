@@ -9,6 +9,8 @@ export interface AuthUser {
   documentPermissions: { groupId: string; level: 'view' | 'manage' }[];
   /** Explicit extra-group Tickets-module view grants beyond own group. */
   ticketViewPermissions: { groupId: string }[];
+  /** Admin-controlled preference: never show this user archived tickets. */
+  hideArchivedTickets: boolean;
 }
 
 export const CurrentUser = createParamDecorator(

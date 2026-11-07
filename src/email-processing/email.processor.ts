@@ -146,6 +146,7 @@ export class EmailProcessor extends WorkerHost {
           groupId: null,
           documentPermissions: [],
           ticketViewPermissions: [],
+          hideArchivedTickets: false,
         });
       }
 

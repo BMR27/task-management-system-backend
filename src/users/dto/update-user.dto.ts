@@ -40,6 +40,10 @@ export class UpdateUserDto {
   isActive?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  hideArchivedTickets?: boolean;
+
+  @IsOptional()
   @IsString()
   avatar?: string;
 

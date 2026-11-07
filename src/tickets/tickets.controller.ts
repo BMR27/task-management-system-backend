@@ -24,10 +24,11 @@ export class TicketsController {
   @Get('count')
   async count(@CurrentUser() user: AuthUser) {
     const where: any = { status: { in: ['new', 'in_progress', 'prod_transito', 'prod_entregado'] } };
-    if (user.role === 'user') where.createdById = user.id;
+    const collaboratingOn = { collaborators: { some: { id: user.id } } };
+    if (user.role === 'user') where.OR = [{ createdById: user.id }, collaboratingOn];
     if (user.role === 'agent') {
       if (user.groupId) {
-        where.groupId = user.groupId;
+        where.OR = [{ groupId: user.groupId }, collaboratingOn];
       } else {
         where.OR = [
           { assignedToId: user.id },
@@ -39,6 +40,7 @@ export class TicketsController {
               },
             },
           },
+          collaboratingOn,
         ];
       }
     }

@@ -100,9 +100,14 @@ model User {
   createdAt        DateTime  @default(now())
   lastLogin        DateTime?
   refreshTokenHash String?
+  // Per-user preference, set by an admin: hide archived tickets from this
+  // user's ticket list/search/direct access. Off by default — everyone sees
+  // archived tickets unless an admin explicitly turns this on for them.
+  hideArchivedTickets Boolean @default(false)
 
   createdTickets  Ticket[]       @relation("CreatedBy")
   assignedTickets Ticket[]       @relation("AssignedTo")
+  collaboratingTickets Ticket[]  @relation("TicketCollaborators")
   comments        Comment[]
   historyEntries  HistoryEntry[]
   notifications   Notification[]
@@ -231,6 +236,10 @@ model Ticket {
   history       HistoryEntry[]
   notifications Notification[]
   emailMessages EmailMessage[]
+  // Additional people who need full visibility/edit access to this ticket
+  // beyond the single primary assignee (e.g. two or three people working
+  // the same ticket together).
+  collaborators User[]         @relation("TicketCollaborators")
 
   @@index([status])
   @@index([priority])
